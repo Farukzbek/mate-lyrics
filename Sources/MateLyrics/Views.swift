@@ -400,11 +400,20 @@ struct ResizeHandle: View {
     }
 }
 
+/// Basılıyken hafifçe solar; tıklandığı belli olsun.
+struct PressFadeStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .animation(.easeOut(duration: configuration.isPressed ? 0.08 : 0.25), value: configuration.isPressed)
+    }
+}
+
 extension View {
     /// Kapağa / plağa tıklayınca Spotify öne gelir (sayfa değiştirmeden).
     func openSpotifyOnTap(_ spotify: SpotifyClient) -> some View {
-        contentShape(Rectangle())
-            .onTapGesture { spotify.bringToFront() }
+        Button { spotify.bringToFront() } label: { contentShape(Rectangle()) }
+            .buttonStyle(PressFadeStyle())
             .help("Spotify'ı aç")
     }
 

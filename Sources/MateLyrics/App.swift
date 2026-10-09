@@ -104,6 +104,14 @@ final class WidgetPanel: NSPanel {
                 return
             case .pending where hypot(dx, dy) > 3:
                 mode = .move
+                // Taşıma başladı: basılı düğmeyi pencere dışında "bırakılmış" sayarak iptal et
+                // (yoksa düğme basılı/soluk kalır; dışarıda bırakılan düğme tetiklenmez).
+                if let cancel = NSEvent.mouseEvent(with: .leftMouseUp, location: NSPoint(x: -10_000, y: -10_000),
+                                                   modifierFlags: [], timestamp: event.timestamp,
+                                                   windowNumber: windowNumber, context: nil,
+                                                   eventNumber: 0, clickCount: 1, pressure: 0) {
+                    super.sendEvent(cancel)
+                }
                 fallthrough
             case .move:
                 setFrameOrigin(NSPoint(x: startOrigin.x + dx, y: startOrigin.y + dy))
