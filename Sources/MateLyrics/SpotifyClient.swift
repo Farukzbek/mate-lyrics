@@ -148,6 +148,15 @@ final class SpotifyClient: ObservableObject {
         }
     }
 
+    /// Spotify'ı öne getirir; Dock simgesine tıklamak gibi, hiçbir sayfaya yönlendirmez
+    /// (kapalıysa açar, pencere kapalıysa son kaldığı sayfayla yeniden gösterir).
+    func bringToFront() {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundleID) else { return }
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        NSWorkspace.shared.openApplication(at: url, configuration: config)
+    }
+
     func openPrivacySettings() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!)
     }

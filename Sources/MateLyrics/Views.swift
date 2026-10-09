@@ -80,11 +80,13 @@ struct WidgetView: View {
                     Group {
                         if settings.style == .vinyl {
                             VinylDisc(image: artwork.image, isPlaying: spotify.isPlaying, s: s)
+                                .openSpotifyOnTap(spotify)
                         } else {
                             ArtworkImage(image: artwork.image, s: s)
                                 .frame(width: 210 * s, height: 210 * s)
                                 .clipShape(RoundedRectangle(cornerRadius: 14 * s, style: .continuous))
                                 .shadow(color: .black.opacity(0.4), radius: 12, y: 6)
+                                .openSpotifyOnTap(spotify)
                         }
                     }
                     .frame(width: 240 * s)
@@ -119,6 +121,7 @@ struct WidgetView: View {
                     ArtworkImage(image: artwork.image, s: s)
                         .frame(width: 58 * s, height: 58 * s)
                         .clipShape(RoundedRectangle(cornerRadius: 8 * s, style: .continuous))
+                        .openSpotifyOnTap(spotify)
                     TrackInfo(track: track, s: s * 0.85, alignment: .leading)
                     Spacer(minLength: 0)
                     Controls(spotify: spotify, showLyrics: $settings.showLyrics, s: s * 0.8)
@@ -398,6 +401,13 @@ struct ResizeHandle: View {
 }
 
 extension View {
+    /// Kapağa / plağa tıklayınca Spotify öne gelir (sayfa değiştirmeden).
+    func openSpotifyOnTap(_ spotify: SpotifyClient) -> some View {
+        contentShape(Rectangle())
+            .onTapGesture { spotify.bringToFront() }
+            .help("Spotify'ı aç")
+    }
+
     /// Şeffaf modda her bölümün arkasına yarı şeffaf, yuvarlak köşeli kutu koyar.
     @ViewBuilder func sectionBox(_ on: Bool, s: CGFloat) -> some View {
         if on {
