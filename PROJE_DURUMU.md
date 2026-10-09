@@ -32,6 +32,10 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
 - İki parmak kaydırma: WidgetPanel.sendEvent(.scrollWheel) → LyricsScroll.shared. Kaydırınca liste o anki satıra
   sabitlenir (frozenActive), 3 sn dokunulmazsa çalan satıra döner; satıra tıklama/şarkı değişimi sıfırlar.
   Test: `.build/debug/MateLyrics --test-scroll <klasör>`
+- Konum kilidi: Settings.lockPosition (menü/sağ tık "Konumu kilitle"); WidgetPanel.isLocked iken
+  taşıma ve köşeden boyutlandırma yok, tutamak yerine hover'da kilit simgesi.
+- Görünmeyen söz satırları tıklanamaz (contentShape + görünürlüğe göre allowsHitTesting);
+  önceden boşluğa/düğmelere tıklayınca şarkı o satıra sarılıyordu.
 - Şarkı başında üst boşluk yok: offset üstten %10'a sınırlı, aktif satır %35'e gelince kaymaya başlar.
 - Spotify'ın kendi söz API'si yok/kapalı; sözler LRCLIB'den.
 

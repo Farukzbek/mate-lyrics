@@ -22,9 +22,20 @@ struct WidgetView: View {
             .overlay(RoundedRectangle(cornerRadius: 22 * s, style: .continuous)
                 .strokeBorder(.white.opacity(transparent ? 0 : 0.08), lineWidth: 1))
             .overlay(alignment: .bottomTrailing) {
-                ResizeHandle(settings: settings)
-                    .padding(4)
-                    .opacity(hovering || settings.isResizing ? 1 : 0.35)
+                Group {
+                    if settings.lockPosition {
+                        // Kilitliyken tutamak yerine küçük kilit; sadece üstüne gelince görünür
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                            .frame(width: 28, height: 28)
+                            .opacity(hovering ? 0.7 : 0)
+                    } else {
+                        ResizeHandle(settings: settings)
+                            .opacity(hovering || settings.isResizing ? 1 : 0.35)
+                    }
+                }
+                .padding(4)
+                .allowsHitTesting(false)
             }
             .onHover { h in withAnimation(.easeOut(duration: 0.2)) { hovering = h } }
             .shadow(color: .black.opacity(transparent ? 0 : 0.35), radius: 18, y: 8)
@@ -355,6 +366,7 @@ struct ContextMenuItems: View {
             Text("İpucu: sağ alt köşeden sürükleyerek de ayarlanır")
         }
         Toggle("Şarkı sözleri", isOn: $settings.showLyrics)
+        Toggle("Konumu kilitle", isOn: $settings.lockPosition)
         Menu("Söz zamanlaması (bu şarkı)") {
             let id = spotify.track?.id
             let current = settings.offset(for: id)

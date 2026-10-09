@@ -57,6 +57,8 @@ final class Settings: ObservableObject {
     @AppStorage("showLyrics") var showLyrics = true
     @AppStorage("pinToDesktop") var pinToDesktop = true
     @AppStorage("widgetVisible") var widgetVisible = true
+    /// Kilitliyken widget taşınamaz ve köşeden boyutlandırılamaz.
+    @AppStorage("lockPosition") var lockPosition = false
     @Published var isResizing = false
 
     // MARK: Şarkı bazında söz kaydırma (LRCLIB zamanlaması tutmazsa elle düzeltmek için)

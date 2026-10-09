@@ -62,6 +62,7 @@ final class WidgetPanel: NSPanel {
     var getScale: () -> Double = { 1 }
     var setScale: (Double) -> Void = { _ in }
     var setResizing: (Bool) -> Void = { _ in }
+    var isLocked: () -> Bool = { false }
 
     private enum Mode { case none, pending, move, resize }
     private var mode = Mode.none
@@ -82,13 +83,16 @@ final class WidgetPanel: NSPanel {
         case .leftMouseDown:
             startMouse = mouse
             startOrigin = frame.origin
-            if inResizeZone(event.locationInWindow) {
+            if isLocked() {
+                mode = .none // kilitli: taşıma/boyutlandırma yok, tıklamalar düğmelere gider
+            } else if inResizeZone(event.locationInWindow) {
                 mode = .resize
                 startScale = getScale()
                 setResizing(true)
                 return
+            } else {
+                mode = .pending
             }
-            mode = .pending
         case .leftMouseDragged:
             let now = mouse
             let dx = now.x - startMouse.x, dy = now.y - startMouse.y
@@ -157,6 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.getScale = { [unowned self] in settings.scale }
         panel.setScale = { [unowned self] in settings.scale = $0 }
         panel.setResizing = { [unowned self] in settings.isResizing = $0 }
+        panel.isLocked = { [unowned self] in settings.lockPosition }
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
 
@@ -294,7 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         func report(_ label: String) {
             let fit = panel.contentView!.fittingSize
-            print(label, "scale:", String(format: "%.2f", settings.scale), "pencere:", panel.frame.size,
+            print(label, "scale:", String(format: "%.2f", settings.scale), "konum:", panel.frame.origin, "pencere:", panel.frame.size,
                   "içerik:", fit, abs(panel.frame.width - fit.width) <= 1 && abs(panel.frame.height - fit.height) <= 1 ? "✓" : "✗ UYUMSUZ")
         }
         report("başlangıç")
