@@ -101,6 +101,41 @@ struct Tonearm: View {
 
 // MARK: - Şarkı sözleri
 
+/// İki parmakla kaydırma durumu. Kaydırınca otomatik takip durur, 3 sn sonra çalan satıra döner.
+@MainActor
+final class LyricsScroll: ObservableObject {
+    static let shared = LyricsScroll()
+    static let idleReturn: TimeInterval = 3
+
+    @Published private(set) var offset: CGFloat = 0
+    /// Kaydırma başladığında görünüm bu satıra sabitlenir (şarkı ilerlese de liste zıplamaz).
+    @Published private(set) var frozenActive: Int?
+    private(set) var lastScroll = Date.distantPast
+    /// Panelin bildirdiği o anki aktif satır ve izin verilen kaydırma aralığı (yayınlanmaz).
+    var currentActive = -1
+    var range: ClosedRange<CGFloat> = 0...0
+
+    func scroll(by dy: CGFloat) {
+        if frozenActive == nil { frozenActive = currentActive }
+        offset = min(max(offset + dy, range.lowerBound), range.upperBound)
+        lastScroll = Date()
+    }
+
+    func reset(animated: Bool) {
+        guard frozenActive != nil || offset != 0 else { return }
+        let apply = { self.offset = 0; self.frozenActive = nil }
+        if animated {
+            withAnimation(.timingCurve(0.25, 0.1, 0.25, 1, duration: 0.6), apply)
+        } else {
+            apply()
+        }
+    }
+
+    func returnIfIdle() {
+        if frozenActive != nil, Date().timeIntervalSince(lastScroll) > Self.idleReturn { reset(animated: true) }
+    }
+}
+
 /// Satırı sesten çok az önce yak (Spotify da böyle yapıyor).
 enum LyricsOffset { static let lead = 0.1 }
 
@@ -135,9 +170,16 @@ struct LyricsPanel: View {
                 }
                 .scrollIndicators(.hidden)
             case .synced(let lines):
-                SyncedLyrics(lines: lines, active: active, background: background, s: s) { spotify.seek(to: $0) }
-                    .onReceive(tick) { _ in updateActive(lines) }
-                    .onAppear { updateActive(lines) }
+                SyncedLyrics(lines: lines, active: active, background: background, s: s) {
+                    scroll.reset(animated: true)
+                    spotify.seek(to: $0)
+                }
+                .onReceive(tick) { _ in
+                    updateActive(lines)
+                    scroll.returnIfIdle()
+                }
+                .onAppear { updateActive(lines) }
+                .onChange(of: spotify.track?.id) { _, _ in scroll.reset(animated: false) }
             }
         }
         .clipShape(Rectangle())
@@ -148,6 +190,7 @@ struct LyricsPanel: View {
     }
 
     @State private var active = -1
+    private let scroll = LyricsScroll.shared
     private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
 
     /// Sadece satır değişince state güncellenir, panel saniyede 20 kez baştan çizilmez.
@@ -157,6 +200,7 @@ struct LyricsPanel: View {
         var i = activeIndex(lines, at: t)
         // Sınırda ölçüm titremesi yüzünden bir önceki satıra zıplama (gerçek geri sarmada geç)
         if i == active - 1, active < lines.count, lines[active].time - t < 0.4 { i = active }
+        scroll.currentActive = i
         guard i != active else { return }
         withAnimation(.timingCurve(0.25, 0.1, 0.25, 1, duration: 0.6)) { active = i }
     }
@@ -181,6 +225,7 @@ struct LyricsPanel: View {
 }
 
 struct SyncedLyrics: View {
+    @ObservedObject private var scroll = LyricsScroll.shared
     let lines: [LyricLine]
     let active: Int
     let background: BackgroundStyle
@@ -192,11 +237,16 @@ struct SyncedLyrics: View {
         // aktif satır hep üstten %35'te durur. Satır değişince sadece 2 satır yeniden çizilir.
         GeometryReader { geo in
             let layout = LyricsLayout.get(lines: lines, width: geo.size.width, s: s)
-            let i = min(max(active, 0), max(lines.count - 1, 0))
+            // Kullanıcı kaydırıyorsa liste kaydırmanın başladığı satıra sabit kalır
+            let i = min(max(scroll.frozenActive ?? active, 0), max(lines.count - 1, 0))
             // Baştaki satırlarda üstte boşluk bırakma: liste en üstten başlar,
             // aktif satır %35 hizasına gelince kaymaya başlar (Spotify gibi).
             let topInset = geo.size.height * 0.1
-            let target = layout.mids.isEmpty ? topInset : min(topInset, geo.size.height * 0.35 - layout.mids[i])
+            let base = layout.mids.isEmpty ? topInset : min(topInset, geo.size.height * 0.35 - layout.mids[i])
+            // Kaydırma sınırı: ilk satır üstten, son satır %35 hizasından öteye gitmesin
+            let lowest = min(topInset, geo.size.height * 0.35 - layout.total)
+            let _ = scroll.range = (lowest - base)...(topInset - base)
+            let target = base + scroll.offset
             VStack(alignment: .leading, spacing: LyricsLayout.spacing * s) {
                 ForEach(lines) { line in
                     LyricRow(text: line.text, state: state(line.id), background: background, s: s) {
@@ -254,7 +304,7 @@ struct LyricRow: View, Equatable {
 enum LyricsLayout {
     static let fontSize: CGFloat = 17
     static let spacing: CGFloat = 12
-    struct Result { let mids: [CGFloat] }
+    struct Result { let mids: [CGFloat]; let total: CGFloat }
     private static var cache: [String: Result] = [:]
 
     static func get(lines: [LyricLine], width: CGFloat, s: CGFloat) -> Result {
@@ -270,7 +320,7 @@ enum LyricsLayout {
             mids.append(y + h / 2)
             y += h + spacing * s
         }
-        let r = Result(mids: mids)
+        let r = Result(mids: mids, total: y)
         if cache.count > 50 { cache.removeAll() }
         cache[key] = r
         return r

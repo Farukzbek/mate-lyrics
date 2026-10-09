@@ -29,6 +29,9 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
 - Senkron: Spotify AppleScript konumu gerçek zamanla ~10 ms uyumlu (ölçüldü). Konum ham kullanılıyor
   (sorgu ortası zaman damgası), lead 0.1 sn, LRCLIB arama eşleşmesi süre farkı < 10 sn (senkron + en yakın süre önce; 3 sn Jefe - TEQUILA SUNRISE gibi tek kayıtlı şarkıları kaçırıyordu).
   Şarkı bazında elle kaydırma: menü › "Söz zamanlaması (bu şarkı)" (UserDefaults "lyricOffsets").
+- İki parmak kaydırma: WidgetPanel.sendEvent(.scrollWheel) → LyricsScroll.shared. Kaydırınca liste o anki satıra
+  sabitlenir (frozenActive), 3 sn dokunulmazsa çalan satıra döner; satıra tıklama/şarkı değişimi sıfırlar.
+  Test: `.build/debug/MateLyrics --test-scroll <klasör>`
 - Şarkı başında üst boşluk yok: offset üstten %10'a sınırlı, aktif satır %35'e gelince kaymaya başlar.
 - Spotify'ın kendi söz API'si yok/kapalı; sözler LRCLIB'den.
 

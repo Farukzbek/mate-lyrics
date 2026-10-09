@@ -107,6 +107,10 @@ final class WidgetPanel: NSPanel {
             default:
                 break
             }
+        case .scrollWheel:
+            // İki parmakla kaydırma → sözleri kaydır (fare tekerinde satır başına ~12 pt)
+            let dy = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 12
+            if dy != 0 { MainActor.assumeIsolated { LyricsScroll.shared.scroll(by: dy) } }
         case .leftMouseUp:
             let was = mode
             mode = .none
@@ -169,6 +173,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         applySettings()
 
+        if let i = CommandLine.arguments.firstIndex(of: "--test-control"), i + 1 < CommandLine.arguments.count {
+            let cmd = CommandLine.arguments[i + 1]
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [self] in
+                @MainActor func state() -> String {
+                    String(format: "%@ @ %.1f sn", spotify.track?.name ?? "-", spotify.currentPosition())
+                }
+                print("önce:", state())
+                cmd == "next" ? spotify.next() : spotify.previous()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    MainActor.assumeIsolated { print("sonra:", state()) }
+                    exit(0)
+                }
+            }
+        }
+        if let i = CommandLine.arguments.firstIndex(of: "--test-scroll"), i + 1 < CommandLine.arguments.count {
+            let dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { self.runScrollTest(dir) }
+        }
         if CommandLine.arguments.contains("--test-drag") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { self.runDragTest() }
         }
@@ -212,6 +234,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         next()
+    }
+
+    /// Geliştirme: iki parmak kaydırmayı sahte olaylarla dener, öncesi/sonrası görüntü kaydeder.
+    private func runScrollTest(_ dir: URL) {
+        let sc = LyricsScroll.shared
+        func shot(_ name: String) {
+            guard let v = panel.contentView, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return }
+            v.cacheDisplay(in: v.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(to: dir.appendingPathComponent(name))
+        }
+        func report(_ l: String) { print(l, "offset:", sc.offset, "sabit satır:", sc.frozenActive ?? -1, "aralık:", sc.range) }
+        report("önce"); shot("scroll-0-once.png")
+        for _ in 0..<8 {
+            let cg = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: -30, wheel2: 0, wheel3: 0)!
+            cg.location = CGPoint(x: panel.frame.midX, y: NSScreen.main!.frame.height - panel.frame.midY)
+            panel.sendEvent(NSEvent(cgEvent: cg)!)
+        }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+        report("aşağı kaydırma sonrası"); shot("scroll-1-kaydirildi.png")
+        for _ in 0..<200 {
+            let cg = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: 60, wheel2: 0, wheel3: 0)!
+            panel.sendEvent(NSEvent(cgEvent: cg)!)
+        }
+        report("çok yukarı kaydırma (sınır testi)")
+        RunLoop.current.run(until: Date().addingTimeInterval(LyricsScroll.idleReturn + 1.2))
+        report("3 sn bekleme sonrası"); shot("scroll-2-geri-dondu.png")
+        exit(0)
     }
 
     /// Geliştirme: köşeden boyutlandırma ve taşımayı sahte fare olaylarıyla dener.
