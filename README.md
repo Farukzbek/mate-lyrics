@@ -21,6 +21,7 @@
 - **Tek tuşla sözleri aç/kapa**, oynat/durdur, ileri/geri, ilerleme çubuğundan atlama
 - **Köşeden sürükleyerek boyutlandırma**, istediğin yere taşıma (konum hatırlanır), **konum kilidi**
 - Sözleri **iki parmakla kaydırma** (3 sn sonra çalan satıra döner)
+- Kapağa / plağa tıklayınca **Spotify öne gelir** (sayfa değiştirmeden)
 - Masaüstüne sabitleme (pencerelerin arkasında) veya her zaman üstte
 - Şarkı bazında söz zamanlaması ince ayarı
 - Menü çubuğu uygulaması, Dock'ta yer kaplamaz; girişte otomatik başlatma
