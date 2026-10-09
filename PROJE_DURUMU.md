@@ -27,7 +27,7 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
   Ölçüm: `.build/release/MateLyrics --bench`
 - SpotifyClient @Published alanlara sadece değer değişince yazar (her yazım tüm widget'ı yeniden çizdiriyordu).
 - Senkron: Spotify AppleScript konumu gerçek zamanla ~10 ms uyumlu (ölçüldü). Konum ham kullanılıyor
-  (sorgu ortası zaman damgası), lead 0.1 sn, LRCLIB arama eşleşmesi süre farkı < 3 sn.
+  (sorgu ortası zaman damgası), lead 0.1 sn, LRCLIB arama eşleşmesi süre farkı < 10 sn (senkron + en yakın süre önce; 3 sn Jefe - TEQUILA SUNRISE gibi tek kayıtlı şarkıları kaçırıyordu).
   Şarkı bazında elle kaydırma: menü › "Söz zamanlaması (bu şarkı)" (UserDefaults "lyricOffsets").
 - Şarkı başında üst boşluk yok: offset üstten %10'a sınırlı, aktif satır %35'e gelince kaymaya başlar.
 - Spotify'ın kendi söz API'si yok/kapalı; sözler LRCLIB'den.

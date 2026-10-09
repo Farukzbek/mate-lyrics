@@ -79,10 +79,11 @@ final class LyricsService: ObservableObject {
             .init(name: "artist_name", value: track.artist),
         ]
         if let list: [Record] = await request(search.url!) {
-            // Farklı kayıtların (remaster, uzun intro) zamanlaması tutmaz: süre en fazla 3 sn farklı olsun,
-            // önce senkron olanlar, sonra süresi en yakın olan.
+            // Önce senkron olanlar, sonra süresi en yakın olan seçilir; böylece birebir kayıt varsa o kazanır.
+            // Sınır geniş tutuldu: LRCLIB'de bazen tek kayıt var ve süresi birkaç sn farklı
+            // (ör. Jefe - TEQUILA SUNRISE: Spotify 158,5 sn, LRCLIB 162 sn). Kayma olursa menüden ince ayar yapılır.
             let diff = { (r: Record) in abs((r.duration ?? 0) - track.duration) }
-            let close = list.filter { diff($0) < 3 }
+            let close = list.filter { diff($0) < 10 }
             let ranked = close.sorted {
                 let a = $0.syncedLyrics != nil ? 0 : 1, b = $1.syncedLyrics != nil ? 0 : 1
                 return a != b ? a < b : diff($0) < diff($1)
