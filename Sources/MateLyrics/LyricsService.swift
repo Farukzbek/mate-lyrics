@@ -56,7 +56,7 @@ final class LyricsService: ObservableObject {
 
     private static let session: URLSession = {
         let c = URLSessionConfiguration.default
-        c.httpAdditionalHeaders = ["User-Agent": "MateLyrics/1.1 (https://github.com/Farukzbek/mate-lyrics)"]
+        c.httpAdditionalHeaders = ["User-Agent": "MateLyrics/1.2 (https://github.com/Farukzbek/mate-lyrics)"]
         c.timeoutIntervalForRequest = 10
         return URLSession(configuration: c)
     }()

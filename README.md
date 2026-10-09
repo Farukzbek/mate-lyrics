@@ -19,7 +19,8 @@
 - **Senkron şarkı sözleri:** Spotify tarzı, söylenen satır vurgulanır; satıra tıklayınca oraya atlar
 - **4 arka plan:** kapak rengi, cam, koyu, şeffaf (ayrı kutular)
 - **Tek tuşla sözleri aç/kapa**, oynat/durdur, ileri/geri, ilerleme çubuğundan atlama
-- **Köşeden sürükleyerek boyutlandırma**, istediğin yere taşıma (konum hatırlanır)
+- **Köşeden sürükleyerek boyutlandırma**, istediğin yere taşıma (konum hatırlanır), **konum kilidi**
+- Sözleri **iki parmakla kaydırma** (3 sn sonra çalan satıra döner)
 - Masaüstüne sabitleme (pencerelerin arkasında) veya her zaman üstte
 - Şarkı bazında söz zamanlaması ince ayarı
 - Menü çubuğu uygulaması, Dock'ta yer kaplamaz; girişte otomatik başlatma
