@@ -191,6 +191,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { self.runScrollTest(dir) }
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--test-click"), i + 2 < CommandLine.arguments.count,
+           let x = Double(CommandLine.arguments[i + 1]), let yTop = Double(CommandLine.arguments[i + 2]) {
+            // (x, yTop): pencerenin sol üstüne göre nokta
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
+                let p = NSPoint(x: x, y: panel.frame.height - yTop)
+                print(String(format: "önce: %@ @ %.1f sn", spotify.track?.name ?? "-", spotify.currentPosition()))
+                for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+                    panel.sendEvent(NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: 0,
+                                                       windowNumber: panel.windowNumber, context: nil,
+                                                       eventNumber: 0, clickCount: 1, pressure: 1)!)
+                    RunLoop.current.run(until: Date().addingTimeInterval(0.08))
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    MainActor.assumeIsolated {
+                        print(String(format: "sonra: %@ @ %.1f sn", self.spotify.track?.name ?? "-", self.spotify.currentPosition()))
+                    }
+                    exit(0)
+                }
+            }
+        }
         if CommandLine.arguments.contains("--test-drag") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { self.runDragTest() }
         }

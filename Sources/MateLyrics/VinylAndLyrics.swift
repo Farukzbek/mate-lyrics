@@ -183,6 +183,7 @@ struct LyricsPanel: View {
             }
         }
         .clipShape(Rectangle())
+        .contentShape(Rectangle())
         .mask(LinearGradient(stops: [
             .init(color: .clear, location: 0), .init(color: .black, location: 0.12),
             .init(color: .black, location: 0.88), .init(color: .clear, location: 1),
@@ -253,11 +254,17 @@ struct SyncedLyrics: View {
                         onSeek(line.time)
                     }
                     .equatable()
+                    // Sadece panelde görünen satırlar tıklanabilir
+                    .allowsHitTesting(layout.mids.indices.contains(line.id)
+                        && (0...geo.size.height).contains(layout.mids[line.id] + target))
                 }
             }
             .offset(y: target)
         }
         .clipped()
+        // clipped() sadece çizimi kırpar; dışarı taşan satırlar görünmez ama tıklanabilir kalıyordu
+        // (boşluğa / düğmelere tıklayınca şarkı o satıra sarılıyordu). Tıklamayı da panelle sınırla.
+        .contentShape(Rectangle())
     }
 
     private func state(_ id: Int) -> LyricRow.State {
