@@ -18,10 +18,27 @@ enum LyricsState: Equatable {
 /// Sözleri ücretsiz LRCLIB API'sinden (lrclib.net) çeker. Key gerekmez.
 @MainActor
 final class LyricsService: ObservableObject {
-    @Published private(set) var state: LyricsState = .idle
+    @Published private(set) var state: LyricsState = .idle {
+        didSet {
+            // Yüklenirken önceki değer korunur: şarkı geçişlerinde panel kapanıp açılmasın
+            let a: Bool? = switch state {
+            case .synced, .plain: true
+            case .notFound, .instrumental: false
+            case .idle, .loading: nil
+            }
+            if let a, a != available { available = a }
+        }
+    }
+    /// Bu şarkının gösterilecek sözü var mı (panelin otomatik açılıp kapanması için).
+    @Published private(set) var available = true
     private var cache: [String: LyricsState] = [:]
     private var currentID: String?
     private var task: Task<Void, Never>?
+
+    #if DEBUG
+    /// Geliştirme: otomatik aç/kapa testini sözü olmayan bir şarkı bulmadan yapabilmek için.
+    func debugSet(_ s: LyricsState) { state = s }
+    #endif
 
     func load(for track: Track?) {
         guard let track else {

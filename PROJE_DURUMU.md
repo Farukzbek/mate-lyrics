@@ -16,8 +16,13 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
 ## Notlar
 - NSHostingController.sizingOptions=.preferredContentSize sonsuz layout döngüsüyle çöktü → pencere boyutu PreferenceKey ile elle ayarlanıyor.
 - ImageRenderer ScrollView çizmiyor ve offset'li içeriği kırpmıyor → snapshot artık NSHostingView.cacheDisplay ile.
-- Pencere boyutu: FittingHostingView.invalidateIntrinsicContentSize → fittingSize'a göre (sizingOptions sadece
-  intrinsicContentSize). Eski SizeKey preference yolu hiç tetiklenmiyordu, pencere küçülmüyordu → köşe kayıyordu.
+- Pencere boyutu: WidgetView'un background GeometryReader'ı onAppear/onChange(of: size) ile
+  AppDelegate.contentSizeChanged'i çağırır → resize(to:). Büyüme anında, küçülme 0.5 sn gecikmeli
+  (söz paneli kapanma animasyonu kesilmesin; elle boyutlandırmada gecikme yok). İçerik pencerede topLeading.
+  Not: root'taki onPreferenceChange ve NSHostingView intrinsic bildirimi güvenilir değildi.
+  Test: `--test-scale`, `--test-drag`, `--test-autohide <klasör>` (DEBUG).
+- Söz paneli otomatik: görünürlük = showLyrics (kullanıcı tercihi) && (lyrics.available || bu şarkıda elle açıldı).
+  available yüklenirken önceki değeri korur. Kapanış: yerinde solma; açılış: kenardan kayma.
   Test: `.build/debug/MateLyrics --test-drag` (sahte fare olaylarıyla büyüt/taşı/küçült, pencere=içerik kontrolü)
 - Oynat/durdur sonrası 1.5 sn Spotify'ın eski durumu yok sayılır (iğne zıplıyordu).
 - Taşıma/boyutlandırma WidgetPanel.sendEvent'te elle (isMovableByWindowBackground köşe sürüklemeyi yutuyordu).

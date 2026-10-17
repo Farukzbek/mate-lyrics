@@ -31,22 +31,6 @@ struct MenuContent: View {
     }
 }
 
-/// İçeriğin doğal boyutu değişince haber veren hosting view.
-final class FittingHostingView<Content: View>: NSHostingView<Content> {
-    var onSizeChange: ((CGSize) -> Void)?
-    private var scheduled = false
-
-    override func invalidateIntrinsicContentSize() {
-        super.invalidateIntrinsicContentSize()
-        guard !scheduled else { return }
-        scheduled = true
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            scheduled = false
-            onSizeChange?(fittingSize)
-        }
-    }
-}
 
 extension Notification.Name {
     static let resetPosition = Notification.Name("mate.resetPosition")
@@ -151,11 +135,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let root = WidgetView(spotify: spotify, lyrics: lyrics, artwork: artwork, settings: settings)
             .fixedSize()
-        let host = FittingHostingView(rootView: root)
+            // Pencere içerikten büyükken (kapanma animasyonu sürerken) içerik sol üstte dursun, ortaya kaymasın
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        let host = NSHostingView(rootView: root)
         // İçerik boyutu değişince (söz aç/kapa, görünüm, ölçek) pencere tam içerik kadar olsun;
         // sol üst köşe sabit kalsın. Böylece köşe tutamağı hep pencerenin sağ alt köşesinde.
-        host.onSizeChange = { [weak self] size in self?.resize(to: size) }
-        host.sizingOptions = [.intrinsicContentSize] // min/max kısıtı yok: pencereyi biz boyutlandırıyoruz
+        // onChange görünüm güncellemesi bittikten sonra çalışır; pencereyi hemen boyutlandırmak güvenli
+        AppDelegate.contentSizeChanged = { [weak self] size in self?.resize(to: size) }
+        host.sizingOptions = [] // pencereyi WidgetView'un bildirdiği boyuta göre biz boyutlandırıyoruz
 
         panel = WidgetPanel(contentRect: NSRect(x: 0, y: 0, width: 400, height: 400),
                             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -174,7 +161,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
 
         restorePosition()
-        resize(to: host.fittingSize)
 
         NotificationCenter.default.publisher(for: NSWindow.didMoveNotification, object: panel)
             .sink { [weak self] _ in self?.savePosition() }.store(in: &bag)
@@ -222,6 +208,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     }
                     exit(0)
                 }
+            }
+        }
+        #if DEBUG
+        if let i = CommandLine.arguments.firstIndex(of: "--test-autohide"), i + 1 < CommandLine.arguments.count {
+            // Söz yok → panel kapanmalı; söz gelince → açılmalı. Pencere genişliği ve görüntüyle kontrol.
+            let dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
+                @MainActor func step(_ name: String, _ state: LyricsState, then: @escaping @MainActor () -> Void) {
+                    lyrics.debugSet(state)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [self] in MainActor.assumeIsolated {
+                        print(name, "pencere:", panel.frame.size, "sözler açık tercihi:", settings.showLyrics)
+                        if let v = panel.contentView, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
+                            v.cacheDisplay(in: v.bounds, to: rep)
+                            try? rep.representation(using: .png, properties: [:])?
+                                .write(to: dir.appendingPathComponent("autohide-\(name).png"))
+                        }
+                        then()
+                    } }
+                }
+                step("1-sozler-var", .synced([LyricLine(id: 0, time: 0, text: "Örnek satır")])) {
+                    self.lyrics.debugSet(.notFound)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [self] in MainActor.assumeIsolated {
+                        if let v = panel.contentView, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
+                            v.cacheDisplay(in: v.bounds, to: rep)
+                            try? rep.representation(using: .png, properties: [:])?
+                                .write(to: dir.appendingPathComponent("autohide-1b-kapaniyor.png"))
+                        }
+                    } }
+                    step("2-soz-yok", .notFound) {
+                        step("3-yukleniyor", .loading) {
+                            step("4-sozler-geri-geldi", .plain(["Düz söz"])) { exit(0) }
+                        }
+                    }
+                }
+            }
+        }
+        #endif
+        if CommandLine.arguments.contains("--test-scale") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
+                @MainActor func r(_ l: String) { print(l, "scale:", settings.scale, "pencere:", panel.frame.size, "içerik:", lastContentSize) }
+                r("başlangıç")
+                settings.scale = 1.4
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in MainActor.assumeIsolated {
+                    r("1.4 sonrası")
+                    settings.scale = 0.7
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { MainActor.assumeIsolated { r("0.7 sonrası"); exit(0) } }
+                } }
             }
         }
         if CommandLine.arguments.contains("--test-drag") {
@@ -306,7 +339,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         }
         func report(_ label: String) {
-            let fit = panel.contentView!.fittingSize
+            let fit = lastContentSize
             print(label, "scale:", String(format: "%.2f", settings.scale), "konum:", panel.frame.origin, "pencere:", panel.frame.size,
                   "içerik:", fit, abs(panel.frame.width - fit.width) <= 1 && abs(panel.frame.height - fit.height) <= 1 ? "✓" : "✗ UYUMSUZ")
         }
@@ -363,8 +396,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// İçerik boyutu değişince (söz aç/kapa, görünüm değişimi) pencereyi boyutlandır; sol üst köşe sabit kalsın.
+    static var contentSizeChanged: ((CGSize) -> Void)?
+    private var pendingShrink: DispatchWorkItem?
+
+    private var lastContentSize = CGSize.zero
+
     private func resize(to size: CGSize) {
-        guard size.width > 0, size.height > 0, panel.frame.size != size else { return }
+        guard size.width > 0, size.height > 0 else { return }
+        lastContentSize = size
+        pendingShrink?.cancel()
+        pendingShrink = nil
+        guard panel.frame.size != size else { return }
+        // Büyürken hemen; küçülürken (söz paneli kapanırken) animasyon bitince küçül, yoksa panel yarıda kesilir.
+        // Köşeden elle boyutlandırırken gecikme olmasın.
+        let shrinking = size.width < panel.frame.width || size.height < panel.frame.height
+        if CommandLine.arguments.contains("--debug-size") { print("resize", size, "küçülme:", shrinking, "elle:", settings.isResizing) }
+        if shrinking && !settings.isResizing {
+            let work = DispatchWorkItem { [weak self] in self?.applyFrame(size) }
+            pendingShrink = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+            return
+        }
+        applyFrame(size)
+    }
+
+    private func applyFrame(_ size: CGSize) {
+        guard panel.frame.size != size else { return }
         let top = panel.frame.maxY
         anchoringTop = true
         panel.setFrame(NSRect(x: panel.frame.minX, y: top - size.height, width: size.width, height: size.height),

@@ -12,6 +12,30 @@ struct WidgetView: View {
     @State private var hovering = false
 
     private var s: CGFloat { CGFloat(settings.scale) }
+
+    /// Söz yoksa panel görünmez olduğu halde kullanıcı bu şarkıda elle açtıysa ("bulunamadı" görsün)
+    @State private var forcedTrackID: String?
+
+    /// Panel sadece kullanıcı sözleri açık tuttuysa görünür; söz yoksa otomatik kapanır, gelince açılır.
+    private var lyricsVisible: Bool {
+        settings.showLyrics && (lyrics.available || (forcedTrackID != nil && forcedTrackID == spotify.track?.id))
+    }
+
+    /// Söz düğmesi: kullanıcının tercihi. Söz olmayan şarkıda açarsa panel yine de açılsın.
+    private var lyricsToggle: Binding<Bool> {
+        Binding(
+            get: { lyricsVisible },
+            set: { on in
+                if on {
+                    settings.showLyrics = true
+                    forcedTrackID = lyrics.available ? nil : spotify.track?.id
+                } else {
+                    // Otomatik kapalıyken basılırsa açılsın istenir; görünürken basılırsa kapanır
+                    settings.showLyrics = false
+                    forcedTrackID = nil
+                }
+            })
+    }
     private var transparent: Bool { settings.background == .transparent }
 
     var body: some View {
@@ -40,6 +64,12 @@ struct WidgetView: View {
             .onHover { h in withAnimation(.easeOut(duration: 0.2)) { hovering = h } }
             .shadow(color: .black.opacity(transparent ? 0 : 0.35), radius: 18, y: 8)
             .padding(30)
+            // Widget'ın gerçek boyutunu pencereye bildir (pencere boyutu buna göre ayarlanır)
+            .background(GeometryReader { g in
+                Color.clear
+                    .onAppear { AppDelegate.contentSizeChanged?(g.size) }
+                    .onChange(of: g.size) { _, size in AppDelegate.contentSizeChanged?(size) }
+            })
             .contextMenu { ContextMenuItems(settings: settings, spotify: spotify) }
             .onChange(of: spotify.track) { _, t in
                 artwork.load(t?.artworkURL)
@@ -49,7 +79,7 @@ struct WidgetView: View {
                 artwork.load(spotify.track?.artworkURL)
                 lyrics.load(for: spotify.track)
             }
-            .animation(.spring(response: 0.45, dampingFraction: 0.85), value: settings.showLyrics)
+            .animation(.spring(response: 0.45, dampingFraction: 0.85), value: lyricsVisible)
             .animation(.spring(response: 0.45, dampingFraction: 0.85), value: settings.style)
     }
 
@@ -95,21 +125,21 @@ struct WidgetView: View {
                     VStack(spacing: 14 * s) {
                         TrackInfo(track: track, s: s, alignment: .center)
                         ProgressRow(spotify: spotify, duration: track.duration, s: s)
-                        Controls(spotify: spotify, showLyrics: $settings.showLyrics, s: s)
+                        Controls(spotify: spotify, showLyrics: lyricsToggle, s: s)
                     }
                     .frame(width: 240 * s)
                     .sectionBox(transparent, s: s)
                 }
                 .padding(transparent ? 0 : 20 * s)
 
-                if settings.showLyrics {
+                if lyricsVisible {
                     lyricsPanel
                         .frame(width: 300 * s)
                         .padding(.vertical, transparent ? 0 : 20 * s)
                         .padding(.trailing, transparent ? 0 : 20 * s)
                         .frame(maxHeight: .infinity)
                         .sectionBox(transparent, s: s)
-                        .transition(.move(edge: .leading).combined(with: .opacity))
+                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                 }
             }
             .frame(height: (settings.style == .vinyl ? 400 : 390) * s + (transparent ? 40 * s : 0))
@@ -124,18 +154,18 @@ struct WidgetView: View {
                         .openSpotifyOnTap(spotify)
                     TrackInfo(track: track, s: s * 0.85, alignment: .leading)
                     Spacer(minLength: 0)
-                    Controls(spotify: spotify, showLyrics: $settings.showLyrics, s: s * 0.8)
+                    Controls(spotify: spotify, showLyrics: lyricsToggle, s: s * 0.8)
                 }
                 ProgressRow(spotify: spotify, duration: track.duration, s: s * 0.85, showTimes: false)
                     .padding(.top, 10 * s)
               }
               .sectionBox(transparent, s: s)
-                if settings.showLyrics {
+                if lyricsVisible {
                     lyricsPanel
                         .frame(height: 170 * s)
                         .sectionBox(transparent, s: s)
                         .padding(.top, 12 * s)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
                 }
             }
             .padding(transparent ? 0 : 16 * s)
