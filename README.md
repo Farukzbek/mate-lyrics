@@ -19,6 +19,7 @@
 - **Senkron şarkı sözleri:** Spotify tarzı, söylenen satır vurgulanır; satıra tıklayınca oraya atlar
 - **4 arka plan:** kapak rengi, cam, koyu, şeffaf (ayrı kutular)
 - **Tek tuşla sözleri aç/kapa**, oynat/durdur, ileri/geri, ilerleme çubuğundan atlama
+- Sözü olmayan şarkılarda söz paneli **otomatik kapanır**, sözler gelince açılır (elle kapattıysan açılmaz)
 - **Köşeden sürükleyerek boyutlandırma**, istediğin yere taşıma (konum hatırlanır), **konum kilidi**
 - Sözleri **iki parmakla kaydırma** (3 sn sonra çalan satıra döner)
 - Kapağa / plağa tıklayınca **Spotify öne gelir** (sayfa değiştirmeden)
