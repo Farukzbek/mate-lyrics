@@ -235,6 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
                 print("SkyLight kilit ekranı katmanı:", lockScreen.isAvailable ? "bulundu" : "BULUNAMADI")
+                settings.background = .transparent
                 let steps: [(String, LockScreenLayout, Bool)] = [
                     ("lock-yan", .side, false), ("lock-yan-kucuk", .side, true), ("lock-kart", .card, false),
                 ]

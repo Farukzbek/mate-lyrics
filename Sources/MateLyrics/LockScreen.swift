@@ -206,6 +206,26 @@ struct LockScreenView: View {
 
     private let spring = Animation.spring(response: 0.45, dampingFraction: 0.85)
 
+    /// Kilit ekranı da widget'ın arka plan ayarını izler. Cam efekti kilit ekranında çalışmadığı için koyu gibi.
+    private var bg: BackgroundStyle { settings.background }
+    private var lyricsScheme: BackgroundStyle { bg == .artwork ? .artwork : .dark }
+
+    @ViewBuilder private func cardFill(_ radius: CGFloat) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        switch bg {
+        case .artwork:
+            ZStack {
+                artwork.color.opacity(0.82)
+                LinearGradient(colors: [.white.opacity(0.06), .black.opacity(0.3)], startPoint: .top, endPoint: .bottom)
+            }
+            .clipShape(shape)
+        case .dark:
+            shape.fill(Color(red: 0.07, green: 0.07, blue: 0.08).opacity(0.88))
+        case .glass, .transparent:
+            shape.fill(.black.opacity(0.38))
+        }
+    }
+
     var body: some View {
         Group {
             if let track = spotify.track {
@@ -244,11 +264,11 @@ struct LockScreenView: View {
                     Spacer(minLength: 0)
                     collapseButton
                 }
-                LyricsPanel(spotify: spotify, lyrics: lyrics, settings: settings, background: .dark, s: 1.05)
+                LyricsPanel(spotify: spotify, lyrics: lyrics, settings: settings, background: lyricsScheme, s: 1.05)
             }
             .padding(18)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(.black.opacity(0.38)))
+            .background(cardFill(24))
             .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(.white.opacity(0.08), lineWidth: 1))
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
         }
@@ -271,25 +291,27 @@ struct LockScreenView: View {
                     Controls(spotify: spotify, showLyrics: .constant(true), s: 1, showsLyricsToggle: false)
                 }
                 .frame(width: 250)
+                .sectionBox(bg == .transparent, s: 1)
 
                 if lyrics.available {
-                    LyricsPanel(spotify: spotify, lyrics: lyrics, settings: settings, background: .artwork, s: 1.15)
-                        .frame(width: 400)
+                    LyricsPanel(spotify: spotify, lyrics: lyrics, settings: settings, background: lyricsScheme, s: 1.15)
+                        // Sabit yükseklik: düz (senkron olmayan) sözler ScrollView'u fixedSize içinde sonsuz uzatmasın
+                        .frame(width: 400, height: bg == .transparent ? 320 : 360)
+                        .sectionBox(bg == .transparent, s: 1)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                 }
             }
-            .padding(26)
+            // Şeffafta dış kart yok: bölümler ayrı yarı saydam kutularda (masaüstü widget'ı gibi)
+            .padding(bg == .transparent ? 0 : 26)
             .fixedSize()
-            .background(
-                ZStack {
-                    artwork.color.opacity(0.82)
-                    LinearGradient(colors: [.white.opacity(0.06), .black.opacity(0.3)], startPoint: .top, endPoint: .bottom)
+            .background { if bg != .transparent { cardFill(28) } }
+            .overlay {
+                if bg != .transparent {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1)
                 }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1))
-            .overlay(alignment: .topTrailing) { collapseButton.padding(14) }
-            .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
+            }
+            .overlay(alignment: .topTrailing) { collapseButton.padding(bg == .transparent ? 10 : 14) }
+            .shadow(color: .black.opacity(bg == .transparent ? 0 : 0.35), radius: 24, y: 10)
             .transition(.opacity.combined(with: .scale(scale: 0.96)))
         }
     }
