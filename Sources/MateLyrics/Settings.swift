@@ -47,11 +47,12 @@ enum WidgetSize: String, CaseIterable, Identifiable {
 }
 
 enum LockScreenLayout: String, CaseIterable, Identifiable {
-    case side, card
+    case subtitle, side, card
     var id: String { rawValue }
     var title: String {
         switch self {
-        case .side: "Sadece sözler (sistem oynatıcısının yanında)"
+        case .subtitle: "Altyazı (sistem oynatıcısının altında)"
+        case .side: "Kutulu sözler (sistem oynatıcısının yanında)"
         case .card: "Tam kart (ortada)"
         }
     }
@@ -81,7 +82,7 @@ final class Settings: ObservableObject {
     /// Kartın kilit ekranındaki dikey konumu (ekran yüksekliğinin oranı, alttan).
     @AppStorage("lockScreenHeight") var lockScreenHeight = 0.45
     /// Kilit ekranında macOS'un kendi oynatıcısı da var; varsayılan olarak onun yanında sadece sözler.
-    @AppStorage("lockScreenLayout") var lockScreenLayout: LockScreenLayout = .side
+    @AppStorage("lockScreenLayout") var lockScreenLayout: LockScreenLayout = .subtitle
     @AppStorage("lockScreenSide") var lockScreenSide: LockScreenSide = .right
     /// Kilit ekranında küçültülmüş (sadece "Sözler" düğmesi) mü.
     @AppStorage("lockScreenCollapsed") var lockScreenCollapsed = false

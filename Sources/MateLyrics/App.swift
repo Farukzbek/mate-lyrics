@@ -37,6 +37,7 @@ struct MenuContent: View {
             Text("Ortada").tag(0.45)
             Text("Aşağıda").tag(0.3)
         }
+        .disabled(settings.lockScreenLayout == .subtitle)
         Button("Kilit ekranı önizlemesi (5 sn)") { NotificationCenter.default.post(name: .lockScreenPreview, object: nil) }
         Toggle("Girişte otomatik başlat", isOn: Binding(get: { settings.launchAtLogin },
                                                         set: { settings.launchAtLogin = $0 }))
@@ -237,6 +238,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 print("SkyLight kilit ekranı katmanı:", lockScreen.isAvailable ? "bulundu" : "BULUNAMADI")
                 settings.background = .transparent
                 let steps: [(String, LockScreenLayout, Bool)] = [
+                    ("lock-altyazi", .subtitle, false), ("lock-altyazi-kapali", .subtitle, true),
                     ("lock-yan", .side, false), ("lock-yan-kucuk", .side, true), ("lock-kart", .card, false),
                 ]
                 var rest = steps[...]
@@ -244,6 +246,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     guard let (name, layout, collapsed) = rest.popFirst() else { exit(0) }
                     settings.lockScreenLayout = layout
                     settings.lockScreenCollapsed = collapsed
+                    if layout == .subtitle {
+                        // Altyazı sadece senkron sözlerde görünür: örnek satırlar (her saniye bir satır)
+                        lyrics.debugSet(.synced((0..<900).map {
+                            LyricLine(id: $0, time: Double($0), text: "Örnek senkron söz satırı \($0) burada akıyor")
+                        }))
+                    }
                     lockScreen.preview(seconds: 30)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in MainActor.assumeIsolated {
                         lockScreen.snapshot(to: dir.appendingPathComponent(name + ".png"))

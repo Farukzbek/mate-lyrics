@@ -59,6 +59,11 @@ final class LockScreenSpace {
 final class LockScreenController {
     /// Tam kart düzeninde pencere boyutu (kart içinde ortalanır).
     static let cardWindowSize = NSSize(width: 920, height: 480)
+    /// Altyazı penceresi: sistem oynatıcısının altı ile profil resminin üstü arasındaki boşluğa sığar.
+    static let subtitleWindowSize = NSSize(width: 820, height: 76)
+    /// Altyazının dikey ortası (ekran yüksekliğinin oranı, alttan). macOS 26 kilit ekranında
+    /// oynatıcının alt kenarı ~%25, profil resminin üst kenarı ~%17.
+    static let subtitleCenter: CGFloat = 0.215
     /// Sistem oynatıcısının yarı genişliği + boşluk (yan düzende sözler bunun dışında durur).
     static let systemPlayerClearance: CGFloat = 175
 
@@ -147,6 +152,10 @@ final class LockScreenController {
         let centerY = f.minY + f.height * CGFloat(settings.lockScreenHeight)
         let rect: NSRect
         switch settings.lockScreenLayout {
+        case .subtitle:
+            let size = Self.subtitleWindowSize
+            let y = f.minY + f.height * Self.subtitleCenter - size.height / 2
+            rect = NSRect(x: f.midX - size.width / 2, y: y, width: size.width, height: size.height)
         case .card:
             let size = Self.cardWindowSize
             rect = NSRect(x: f.midX - size.width / 2, y: centerY - size.height / 2, width: size.width, height: size.height)
@@ -184,6 +193,12 @@ final class LockScreenController {
     /// Geliştirme: kartı önizleme olarak açıp görüntüsünü kaydeder.
     func snapshot(to url: URL) {
         guard let v = panel.contentView, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return }
+        // Kilit ekranını taklit eden koyu zemin (yoksa şeffaf alanlar beyaz çıkıyor)
+        if let ctx = NSGraphicsContext(bitmapImageRep: rep) {
+            NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = ctx
+            NSColor(white: 0.05, alpha: 1).setFill(); v.bounds.fill()
+            NSGraphicsContext.restoreGraphicsState()
+        }
         v.cacheDisplay(in: v.bounds, to: rep)
         try? rep.representation(using: .png, properties: [:])?.write(to: url)
     }
@@ -230,6 +245,8 @@ struct LockScreenView: View {
         Group {
             if let track = spotify.track {
                 switch settings.lockScreenLayout {
+                case .subtitle:
+                    LockSubtitleView(spotify: spotify, lyrics: lyrics, settings: settings)
                 case .side: side(track)
                 case .card: card(track)
                 }
@@ -244,7 +261,7 @@ struct LockScreenView: View {
     /// Küçültülmüş "Sözler" düğmesi sistem oynatıcısına yakın tarafta dursun.
     private var alignment: Alignment {
         switch settings.lockScreenLayout {
-        case .card: .center
+        case .subtitle, .card: .center
         case .side: settings.lockScreenSide == .right ? .topLeading : .topTrailing
         }
     }
@@ -344,5 +361,90 @@ struct LockScreenView: View {
         .buttonStyle(PressFadeStyle())
         .padding(4)
         .help("Sözleri göster")
+    }
+}
+
+// MARK: - Altyazı düzeni
+
+/// Sistem oynatıcısının altında, kutusuz: o an söylenen satır büyük, sıradaki satır soluk.
+/// Sadece senkron sözlerde görünür. Sağdaki küçük simge altyazıyı gizler/gösterir.
+struct LockSubtitleView: View {
+    @ObservedObject var spotify: SpotifyClient
+    @ObservedObject var lyrics: LyricsService
+    @ObservedObject var settings: Settings
+
+    @State private var active = -1
+    private let tick = Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()
+    private let spring = Animation.spring(response: 0.5, dampingFraction: 0.9)
+
+    var body: some View {
+        if case .synced(let lines) = lyrics.state {
+            ZStack {
+                if !settings.lockScreenCollapsed {
+                    subtitle(lines)
+                        .transition(.opacity)
+                }
+                HStack {
+                    Spacer()
+                    toggle
+                }
+            }
+            .padding(.horizontal, 8)
+            .onReceive(tick) { _ in update(lines) }
+            .onAppear { update(lines) }
+            .animation(spring, value: settings.lockScreenCollapsed)
+        }
+    }
+
+    private func subtitle(_ lines: [LyricLine]) -> some View {
+        let current = active >= 0 && active < lines.count ? lines[active].text : nil
+        let next = active + 1 < lines.count ? lines[active + 1].text : nil
+        return VStack(spacing: 6) {
+            // Satır değişince yeni satır aşağıdan kayarak gelir, eskisi yukarı doğru solar
+            Text(current ?? "♪")
+                .font(.system(size: 21, weight: .bold))
+                .foregroundStyle(.white.opacity(current == nil ? 0.5 : 1))
+                .id("c\(active)")
+                .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity),
+                                        removal: .move(edge: .top).combined(with: .opacity)))
+            if let next {
+                Text(next)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .id("n\(active)")
+                    .transition(.opacity)
+            }
+        }
+        .lineLimit(1)
+        .truncationMode(.tail)
+        .multilineTextAlignment(.center)
+        .shadow(color: .black.opacity(0.6), radius: 6, y: 1)
+        .frame(maxWidth: 700)
+        .clipped()
+    }
+
+    private var toggle: some View {
+        Button {
+            withAnimation(spring) { settings.lockScreenCollapsed.toggle() }
+        } label: {
+            Image(systemName: settings.lockScreenCollapsed ? "quote.bubble" : "quote.bubble.fill")
+                .font(.system(size: 14, weight: .medium))
+                .frame(width: 30, height: 30)
+                .contentShape(Rectangle())
+                .opacity(settings.lockScreenCollapsed ? 0.7 : 0.35)
+        }
+        .buttonStyle(PressFadeStyle())
+        .help(settings.lockScreenCollapsed ? "Sözleri göster" : "Sözleri gizle")
+    }
+
+    private func update(_ lines: [LyricLine]) {
+        let t = spotify.currentPosition() + LyricsOffset.lead + settings.offset(for: spotify.track?.id)
+        var lo = 0, hi = lines.count - 1, i = -1
+        while lo <= hi {
+            let mid = (lo + hi) / 2
+            if lines[mid].time <= t { i = mid; lo = mid + 1 } else { hi = mid - 1 }
+        }
+        guard i != active else { return }
+        withAnimation(spring) { active = i }
     }
 }
