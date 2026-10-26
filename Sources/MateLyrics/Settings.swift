@@ -46,6 +46,23 @@ enum WidgetSize: String, CaseIterable, Identifiable {
     }
 }
 
+enum LockScreenLayout: String, CaseIterable, Identifiable {
+    case side, card
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .side: "Sadece sözler (sistem oynatıcısının yanında)"
+        case .card: "Tam kart (ortada)"
+        }
+    }
+}
+
+enum LockScreenSide: String, CaseIterable, Identifiable {
+    case right, left
+    var id: String { rawValue }
+    var title: String { self == .right ? "Sağda" : "Solda" }
+}
+
 /// Kullanıcı ayarları (UserDefaults'a kaydedilir).
 @MainActor
 final class Settings: ObservableObject {
@@ -63,6 +80,11 @@ final class Settings: ObservableObject {
     @AppStorage("lockScreenEnabled") var lockScreenEnabled = true
     /// Kartın kilit ekranındaki dikey konumu (ekran yüksekliğinin oranı, alttan).
     @AppStorage("lockScreenHeight") var lockScreenHeight = 0.45
+    /// Kilit ekranında macOS'un kendi oynatıcısı da var; varsayılan olarak onun yanında sadece sözler.
+    @AppStorage("lockScreenLayout") var lockScreenLayout: LockScreenLayout = .side
+    @AppStorage("lockScreenSide") var lockScreenSide: LockScreenSide = .right
+    /// Kilit ekranında küçültülmüş (sadece "Sözler" düğmesi) mü.
+    @AppStorage("lockScreenCollapsed") var lockScreenCollapsed = false
     @Published var isResizing = false
 
     // MARK: Şarkı bazında söz kaydırma (LRCLIB zamanlaması tutmazsa elle düzeltmek için)

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 // MARK: - Kilit ekranı katmanı (SkyLight)
@@ -56,20 +57,23 @@ final class LockScreenSpace {
 
 @MainActor
 final class LockScreenController {
-    /// Pencere sabit boyutta; kart içinde ortalanır (sözler yokken daralır, pencere değişmez).
-    static let windowSize = NSSize(width: 920, height: 480)
+    /// Tam kart düzeninde pencere boyutu (kart içinde ortalanır).
+    static let cardWindowSize = NSSize(width: 920, height: 480)
+    /// Sistem oynatıcısının yarı genişliği + boşluk (yan düzende sözler bunun dışında durur).
+    static let systemPlayerClearance: CGFloat = 175
 
     private let spotify: SpotifyClient
     private let settings: Settings
     private let panel: NSPanel
     private var isLocked = false
     private var previewWork: DispatchWorkItem?
+    private var settingsObserver: Any?
 
     init(spotify: SpotifyClient, lyrics: LyricsService, artwork: ArtworkStore, settings: Settings) {
         self.spotify = spotify
         self.settings = settings
 
-        panel = LockPanel(contentRect: NSRect(origin: .zero, size: Self.windowSize),
+        panel = LockPanel(contentRect: NSRect(origin: .zero, size: Self.cardWindowSize),
                           styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -81,8 +85,15 @@ final class LockScreenController {
         panel.collectionBehavior = [.fullScreenAuxiliary, .stationary, .canJoinAllSpaces, .ignoresCycle]
         panel.appearance = NSAppearance(named: .darkAqua)
         panel.alphaValue = 0
-        panel.contentView = NSHostingView(rootView: LockScreenView(
+        let host = NSHostingView(rootView: LockScreenView(
             spotify: spotify, lyrics: lyrics, artwork: artwork, settings: settings))
+        host.sizingOptions = [] // pencere boyutunu place() belirler, görünüm pencereyi doldurur
+        panel.contentView = host
+
+        // Düzen / taraf / yükseklik değişince görünürse yeniden yerleş
+        settingsObserver = settings.objectWillChange.sink { [weak self] _ in
+            DispatchQueue.main.async { if let self, self.panel.isVisible { self.place() } }
+        }
 
         let dnc = DistributedNotificationCenter.default()
         dnc.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
@@ -129,13 +140,25 @@ final class LockScreenController {
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
     }
 
-    /// Ana ekranın ortasının biraz altı: üstteki saatle alttaki şifre alanının arasına.
+    /// Tam kart: ortada. Yan düzen: macOS'un kilit ekranı oynatıcısının (ekranın ortasında) sağında/solunda.
     private func place() {
         guard let screen = NSScreen.screens.first else { return }
         let f = screen.frame
-        let size = Self.windowSize
-        let y = f.minY + f.height * CGFloat(settings.lockScreenHeight) - size.height / 2
-        panel.setFrame(NSRect(x: f.midX - size.width / 2, y: y, width: size.width, height: size.height), display: true)
+        let centerY = f.minY + f.height * CGFloat(settings.lockScreenHeight)
+        let rect: NSRect
+        switch settings.lockScreenLayout {
+        case .card:
+            let size = Self.cardWindowSize
+            rect = NSRect(x: f.midX - size.width / 2, y: centerY - size.height / 2, width: size.width, height: size.height)
+        case .side:
+            let width = min(400, max(240, f.width / 2 - Self.systemPlayerClearance - 24))
+            let height: CGFloat = 400
+            let x = settings.lockScreenSide == .right
+                ? f.midX + Self.systemPlayerClearance
+                : f.midX - Self.systemPlayerClearance - width
+            rect = NSRect(x: x, y: centerY - height / 2, width: width, height: height)
+        }
+        panel.setFrame(rect, display: true)
     }
 
     private func show() {
@@ -181,46 +204,123 @@ struct LockScreenView: View {
     @ObservedObject var artwork: ArtworkStore
     @ObservedObject var settings: Settings
 
+    private let spring = Animation.spring(response: 0.45, dampingFraction: 0.85)
+
     var body: some View {
         Group {
             if let track = spotify.track {
-                card(track)
+                switch settings.lockScreenLayout {
+                case .side: side(track)
+                case .card: card(track)
+                }
             }
         }
         .foregroundStyle(.white)
-        .frame(width: LockScreenController.windowSize.width, height: LockScreenController.windowSize.height)
-        .animation(.spring(response: 0.45, dampingFraction: 0.85), value: lyrics.available)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+        .animation(spring, value: lyrics.available)
+        .animation(spring, value: settings.lockScreenCollapsed)
     }
 
-    private func card(_ track: Track) -> some View {
-        HStack(spacing: 28) {
-            VStack(spacing: 14) {
-                ArtworkImage(image: artwork.image, s: 1.1)
-                    .frame(width: 170, height: 170)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .shadow(color: .black.opacity(0.4), radius: 12, y: 6)
-                TrackInfo(track: track, s: 1.05, alignment: .center)
-                ProgressRow(spotify: spotify, duration: track.duration, s: 1)
-                Controls(spotify: spotify, showLyrics: .constant(true), s: 1, showsLyricsToggle: false)
-            }
-            .frame(width: 250)
-
-            if lyrics.available {
-                LyricsPanel(spotify: spotify, lyrics: lyrics, settings: settings, background: .artwork, s: 1.15)
-                    .frame(width: 400)
-                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
-            }
+    /// Küçültülmüş "Sözler" düğmesi sistem oynatıcısına yakın tarafta dursun.
+    private var alignment: Alignment {
+        switch settings.lockScreenLayout {
+        case .card: .center
+        case .side: settings.lockScreenSide == .right ? .topLeading : .topTrailing
         }
-        .padding(26)
-        .fixedSize()
-        .background(
-            ZStack {
-                artwork.color.opacity(0.82)
-                LinearGradient(colors: [.white.opacity(0.06), .black.opacity(0.3)], startPoint: .top, endPoint: .bottom)
+    }
+
+    // MARK: Yan düzen: sadece sözler
+
+    @ViewBuilder private func side(_ track: Track) -> some View {
+        if settings.lockScreenCollapsed {
+            expandButton.transition(.opacity.combined(with: .scale(scale: 0.9)))
+        } else if lyrics.available {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(track.name).font(.system(size: 14, weight: .bold)).lineLimit(1)
+                        Text(track.artist).font(.system(size: 12, weight: .medium)).opacity(0.6).lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    collapseButton
+                }
+                LyricsPanel(spotify: spotify, lyrics: lyrics, settings: settings, background: .dark, s: 1.05)
             }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1))
-        .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
+            .padding(18)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(.black.opacity(0.38)))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(.white.opacity(0.08), lineWidth: 1))
+            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+        }
+    }
+
+    // MARK: Tam kart
+
+    @ViewBuilder private func card(_ track: Track) -> some View {
+        if settings.lockScreenCollapsed {
+            expandButton.transition(.opacity.combined(with: .scale(scale: 0.9)))
+        } else {
+            HStack(spacing: 28) {
+                VStack(spacing: 14) {
+                    ArtworkImage(image: artwork.image, s: 1.1)
+                        .frame(width: 170, height: 170)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .shadow(color: .black.opacity(0.4), radius: 12, y: 6)
+                    TrackInfo(track: track, s: 1.05, alignment: .center)
+                    ProgressRow(spotify: spotify, duration: track.duration, s: 1)
+                    Controls(spotify: spotify, showLyrics: .constant(true), s: 1, showsLyricsToggle: false)
+                }
+                .frame(width: 250)
+
+                if lyrics.available {
+                    LyricsPanel(spotify: spotify, lyrics: lyrics, settings: settings, background: .artwork, s: 1.15)
+                        .frame(width: 400)
+                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
+                }
+            }
+            .padding(26)
+            .fixedSize()
+            .background(
+                ZStack {
+                    artwork.color.opacity(0.82)
+                    LinearGradient(colors: [.white.opacity(0.06), .black.opacity(0.3)], startPoint: .top, endPoint: .bottom)
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 1))
+            .overlay(alignment: .topTrailing) { collapseButton.padding(14) }
+            .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
+            .transition(.opacity.combined(with: .scale(scale: 0.96)))
+        }
+    }
+
+    // MARK: Küçült / aç
+
+    private var collapseButton: some View {
+        Button { withAnimation(spring) { settings.lockScreenCollapsed = true } } label: {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 11, weight: .bold))
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(.white.opacity(0.14)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(PressFadeStyle())
+        .help("Sözleri küçült")
+    }
+
+    private var expandButton: some View {
+        Button { withAnimation(spring) { settings.lockScreenCollapsed = false } } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "quote.bubble.fill").font(.system(size: 12))
+                Text("Sözler").font(.system(size: 13, weight: .semibold))
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .background(Capsule().fill(.black.opacity(0.38)))
+            .overlay(Capsule().strokeBorder(.white.opacity(0.1), lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(PressFadeStyle())
+        .padding(4)
+        .help("Sözleri göster")
     }
 }

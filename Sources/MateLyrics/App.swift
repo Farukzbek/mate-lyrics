@@ -25,7 +25,14 @@ struct MenuContent: View {
         Toggle("Masaüstüne sabitle (pencerelerin arkasında)", isOn: $settings.pinToDesktop)
         Divider()
         Toggle("Kilit ekranında göster", isOn: $settings.lockScreenEnabled)
-        Picker("Kilit ekranında konum", selection: $settings.lockScreenHeight) {
+        Picker("Kilit ekranı görünümü", selection: $settings.lockScreenLayout) {
+            ForEach(LockScreenLayout.allCases) { Text($0.title).tag($0) }
+        }
+        Picker("Kilit ekranında taraf", selection: $settings.lockScreenSide) {
+            ForEach(LockScreenSide.allCases) { Text($0.title).tag($0) }
+        }
+        .disabled(settings.lockScreenLayout != .side)
+        Picker("Kilit ekranında yükseklik", selection: $settings.lockScreenHeight) {
             Text("Yukarıda").tag(0.62)
             Text("Ortada").tag(0.45)
             Text("Aşağıda").tag(0.3)
@@ -225,14 +232,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         #if DEBUG
         if let i = CommandLine.arguments.firstIndex(of: "--test-lockscreen"), i + 1 < CommandLine.arguments.count {
-            let url = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+            let dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
                 print("SkyLight kilit ekranı katmanı:", lockScreen.isAvailable ? "bulundu" : "BULUNAMADI")
-                lockScreen.preview(seconds: 3)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in MainActor.assumeIsolated {
-                    lockScreen.snapshot(to: url)
-                    exit(0)
-                } }
+                let steps: [(String, LockScreenLayout, Bool)] = [
+                    ("lock-yan", .side, false), ("lock-yan-kucuk", .side, true), ("lock-kart", .card, false),
+                ]
+                var rest = steps[...]
+                @MainActor func next() {
+                    guard let (name, layout, collapsed) = rest.popFirst() else { exit(0) }
+                    settings.lockScreenLayout = layout
+                    settings.lockScreenCollapsed = collapsed
+                    lockScreen.preview(seconds: 30)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in MainActor.assumeIsolated {
+                        lockScreen.snapshot(to: dir.appendingPathComponent(name + ".png"))
+                        next()
+                    } }
+                }
+                next()
             }
         }
         if let i = CommandLine.arguments.firstIndex(of: "--test-autohide"), i + 1 < CommandLine.arguments.count {

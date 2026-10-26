@@ -44,7 +44,10 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
 - Kilit ekranı (LockScreen.swift): ÖZEL SkyLight API'si (dlopen, SLSSpaceCreate + SetAbsoluteLevel 400 +
   SLSSpaceAddWindowsAndRemoveFromSpaces flag 7) ile pencere kilit ekranı katmanına iliştirilir;
   com.apple.screenIsLocked/Unlocked ile göster/gizle. Sembol yoksa sessizce devre dışı. Yöntem: TechSynth/LockWidget.
-  Menü: "Kilit ekranında göster", konum (Yukarıda/Ortada/Aşağıda), "Kilit ekranı önizlemesi (5 sn)".
+  macOS'un kendi kilit ekranı oynatıcısı (ortada) ile çakışmasın diye varsayılan düzen "side": sadece sözler,
+  oynatıcının sağında/solunda (merkezden 175 pt dışarıda). "card" = tam kart ortada.
+  Kilit ekranında küçült (chevron) / "Sözler" düğmesiyle aç; lockScreenCollapsed hatırlanır.
+  Menü: aç/kapa, görünüm, taraf, yükseklik, "Kilit ekranı önizlemesi (5 sn)".
   Test: `.build/debug/MateLyrics --test-lockscreen <png>` (önizleme görüntüsü; gerçek kilit ekranını test edemez).
 - Proje 2026-10 itibarıyla ~/Desktop/Mate Studios/mate-lyrics'te (taşınınca .build silinmeli, modül önbelleği eski yolu tutuyor).
 - Şarkı başında üst boşluk yok: offset üstten %10'a sınırlı, aktif satır %35'e gelince kaymaya başlar.
