@@ -55,10 +55,21 @@ final class LyricsService: ObservableObject {
         }
         state = .loading
         task = Task {
-            let result = await Self.fetch(track)
+            // Sunucu/ağ hatasında "söz yok" deme: 3, 8, 20 sn sonra tekrar dene (panel bu sırada olduğu gibi kalır)
+            for delay in [0, 3, 8, 20] as [UInt64] {
+                if delay > 0 { try? await Task.sleep(nanoseconds: delay * 1_000_000_000) }
+                guard !Task.isCancelled, currentID == track.id else { return }
+                if let result = await Self.fetch(track) {
+                    guard !Task.isCancelled, currentID == track.id else { return }
+                    cache[track.id] = result
+                    state = result
+                    return
+                }
+            }
+            // Hâlâ ulaşılamıyor: "bulunamadı" göster ama önbelleğe alma (şarkı tekrar gelince yeniden denenir)
             guard !Task.isCancelled, currentID == track.id else { return }
-            cache[track.id] = result
-            state = result
+            state = .notFound
+            currentID = nil
         }
     }
 
@@ -78,7 +89,8 @@ final class LyricsService: ObservableObject {
         return URLSession(configuration: c)
     }()
 
-    private static func fetch(_ track: Track) async -> LyricsState {
+    /// nil = LRCLIB'e ulaşılamadı (ağ hatası, 5xx); .notFound = gerçekten söz yok.
+    private static func fetch(_ track: Track) async -> LyricsState? {
         // 1) Birebir eşleşme (süre dahil)
         var get = URLComponents(string: "https://lrclib.net/api/get")!
         get.queryItems = [
@@ -87,7 +99,12 @@ final class LyricsService: ObservableObject {
             .init(name: "album_name", value: track.album),
             .init(name: "duration", value: String(Int(track.duration.rounded()))),
         ]
-        if let r: Record = await request(get.url!), let s = state(from: r) { return s }
+        var reachable = true
+        switch await request(get.url!) as Response<Record> {
+        case .ok(let r): if let s = state(from: r) { return s }
+        case .notFound: break
+        case .failed: reachable = false
+        }
 
         // 2) Arama: "- Remastered", "(feat. ...)" gibi ekleri temizleyip en yakın süreyi seç
         var search = URLComponents(string: "https://lrclib.net/api/search")!
@@ -95,7 +112,9 @@ final class LyricsService: ObservableObject {
             .init(name: "track_name", value: cleaned(track.name)),
             .init(name: "artist_name", value: track.artist),
         ]
-        if let list: [Record] = await request(search.url!) {
+        let searchResult: Response<[Record]> = await request(search.url!)
+        if case .failed = searchResult { return nil }
+        if case .ok(let list) = searchResult {
             // Önce senkron olanlar, sonra süresi en yakın olan seçilir; böylece birebir kayıt varsa o kazanır.
             // Sınır geniş tutuldu: LRCLIB'de bazen tek kayıt var ve süresi birkaç sn farklı
             // (ör. Jefe - TEQUILA SUNRISE: Spotify 158,5 sn, LRCLIB 162 sn). Kayma olursa menüden ince ayar yapılır.
@@ -107,13 +126,18 @@ final class LyricsService: ObservableObject {
             }
             for r in ranked { if let s = state(from: r) { return s } }
         }
-        return .notFound
+        // Arama çalıştı ama birebir istek başarısız olmuştu: sonucu kesin sayma, tekrar denensin
+        return reachable ? .notFound : nil
     }
 
-    private static func request<T: Decodable>(_ url: URL) async -> T? {
+    private enum Response<T> { case ok(T), notFound, failed }
+
+    private static func request<T: Decodable>(_ url: URL) async -> Response<T> {
         guard let (data, response) = try? await session.data(from: url),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
-        return try? JSONDecoder().decode(T.self, from: data)
+              let code = (response as? HTTPURLResponse)?.statusCode else { return .failed }
+        if code == 404 { return .notFound }
+        guard code == 200, let value = try? JSONDecoder().decode(T.self, from: data) else { return .failed }
+        return .ok(value)
     }
 
     private static func state(from r: Record) -> LyricsState? {
