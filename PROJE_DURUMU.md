@@ -41,6 +41,12 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
   taşıma ve köşeden boyutlandırma yok, tutamak yerine hover'da kilit simgesi.
 - Görünmeyen söz satırları tıklanamaz (contentShape + görünürlüğe göre allowsHitTesting);
   önceden boşluğa/düğmelere tıklayınca şarkı o satıra sarılıyordu.
+- Kilit ekranı (LockScreen.swift): ÖZEL SkyLight API'si (dlopen, SLSSpaceCreate + SetAbsoluteLevel 400 +
+  SLSSpaceAddWindowsAndRemoveFromSpaces flag 7) ile pencere kilit ekranı katmanına iliştirilir;
+  com.apple.screenIsLocked/Unlocked ile göster/gizle. Sembol yoksa sessizce devre dışı. Yöntem: TechSynth/LockWidget.
+  Menü: "Kilit ekranında göster", konum (Yukarıda/Ortada/Aşağıda), "Kilit ekranı önizlemesi (5 sn)".
+  Test: `.build/debug/MateLyrics --test-lockscreen <png>` (önizleme görüntüsü; gerçek kilit ekranını test edemez).
+- Proje 2026-10 itibarıyla ~/Desktop/Mate Studios/mate-lyrics'te (taşınınca .build silinmeli, modül önbelleği eski yolu tutuyor).
 - Şarkı başında üst boşluk yok: offset üstten %10'a sınırlı, aktif satır %35'e gelince kaymaya başlar.
 - Spotify'ın kendi söz API'si yok/kapalı; sözler LRCLIB'den.
 

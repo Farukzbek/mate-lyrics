@@ -59,6 +59,10 @@ final class Settings: ObservableObject {
     @AppStorage("widgetVisible") var widgetVisible = true
     /// Kilitliyken widget taşınamaz ve köşeden boyutlandırılamaz.
     @AppStorage("lockPosition") var lockPosition = false
+    /// Ekran kilitliyken kilit ekranında şarkı + sözler kartı göster.
+    @AppStorage("lockScreenEnabled") var lockScreenEnabled = true
+    /// Kartın kilit ekranındaki dikey konumu (ekran yüksekliğinin oranı, alttan).
+    @AppStorage("lockScreenHeight") var lockScreenHeight = 0.45
     @Published var isResizing = false
 
     // MARK: Şarkı bazında söz kaydırma (LRCLIB zamanlaması tutmazsa elle düzeltmek için)

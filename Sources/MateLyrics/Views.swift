@@ -301,6 +301,7 @@ struct Controls: View {
     @ObservedObject var spotify: SpotifyClient
     @Binding var showLyrics: Bool
     let s: CGFloat
+    var showsLyricsToggle = true
 
     var body: some View {
         HStack(spacing: 22 * s) {
@@ -309,7 +310,7 @@ struct Controls: View {
                 spotify.playPause()
             }
             ControlButton(symbol: "forward.fill", size: 16 * s) { spotify.next() }
-            LyricsToggle(isOn: $showLyrics, s: s)
+            if showsLyricsToggle { LyricsToggle(isOn: $showLyrics, s: s) }
         }
     }
 }

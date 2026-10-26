@@ -23,6 +23,14 @@ struct MenuContent: View {
         ContextMenuItems(settings: settings, spotify: spotify)
         Divider()
         Toggle("Masaüstüne sabitle (pencerelerin arkasında)", isOn: $settings.pinToDesktop)
+        Divider()
+        Toggle("Kilit ekranında göster", isOn: $settings.lockScreenEnabled)
+        Picker("Kilit ekranında konum", selection: $settings.lockScreenHeight) {
+            Text("Yukarıda").tag(0.62)
+            Text("Ortada").tag(0.45)
+            Text("Aşağıda").tag(0.3)
+        }
+        Button("Kilit ekranı önizlemesi (5 sn)") { NotificationCenter.default.post(name: .lockScreenPreview, object: nil) }
         Toggle("Girişte otomatik başlat", isOn: Binding(get: { settings.launchAtLogin },
                                                         set: { settings.launchAtLogin = $0 }))
         Divider()
@@ -34,6 +42,7 @@ struct MenuContent: View {
 
 extension Notification.Name {
     static let resetPosition = Notification.Name("mate.resetPosition")
+    static let lockScreenPreview = Notification.Name("mate.lockScreenPreview")
 }
 
 /// Kenarlıksız, şeffaf panel. Taşıma ve köşeden boyutlandırmayı kendisi yönetir:
@@ -127,6 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let artwork = ArtworkStore()
 
     private var panel: WidgetPanel!
+    private var lockScreen: LockScreenController!
     private var bag = Set<AnyCancellable>()
     private var anchoringTop = false
 
@@ -164,6 +174,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NotificationCenter.default.publisher(for: NSWindow.didMoveNotification, object: panel)
             .sink { [weak self] _ in self?.savePosition() }.store(in: &bag)
+        lockScreen = LockScreenController(spotify: spotify, lyrics: lyrics, artwork: artwork, settings: settings)
+        NotificationCenter.default.publisher(for: .lockScreenPreview)
+            .sink { [weak self] _ in self?.lockScreen.preview() }.store(in: &bag)
         NotificationCenter.default.publisher(for: .resetPosition)
             .sink { [weak self] _ in self?.resetPosition() }.store(in: &bag)
         settings.objectWillChange
@@ -211,6 +224,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         #if DEBUG
+        if let i = CommandLine.arguments.firstIndex(of: "--test-lockscreen"), i + 1 < CommandLine.arguments.count {
+            let url = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
+                print("SkyLight kilit ekranı katmanı:", lockScreen.isAvailable ? "bulundu" : "BULUNAMADI")
+                lockScreen.preview(seconds: 3)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in MainActor.assumeIsolated {
+                    lockScreen.snapshot(to: url)
+                    exit(0)
+                } }
+            }
+        }
         if let i = CommandLine.arguments.firstIndex(of: "--test-autohide"), i + 1 < CommandLine.arguments.count {
             // Söz yok → panel kapanmalı; söz gelince → açılmalı. Pencere genişliği ve görüntüyle kontrol.
             let dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
