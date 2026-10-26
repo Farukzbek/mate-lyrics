@@ -44,7 +44,9 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
 - Kilit ekranı (LockScreen.swift): ÖZEL SkyLight API'si (dlopen, SLSSpaceCreate + SetAbsoluteLevel 400 +
   SLSSpaceAddWindowsAndRemoveFromSpaces flag 7) ile pencere kilit ekranı katmanına iliştirilir;
   com.apple.screenIsLocked/Unlocked ile göster/gizle. Sembol yoksa sessizce devre dışı. Yöntem: TechSynth/LockWidget.
-  macOS'un kendi kilit ekranı oynatıcısı (ortada) ile çakışmasın diye varsayılan düzen "side": sadece sözler,
+  Varsayılan düzen "subtitle": sistem oynatıcısının ALTINDA kutusuz altyazı (o anki satır + sıradaki), sadece
+  senkron sözlerde; dikey merkez ekranın %21.5'i (macOS 26, kullanıcının ekranına göre ayarlandı), sağdaki simge gizle/göster.
+  Kullanıcı "side" kutuyu sistem oynatıcısının yanında "saçma" buldu. Diğer düzenler: "side": kutulu sözler,
   oynatıcının sağında/solunda (merkezden 175 pt dışarıda). "card" = tam kart ortada.
   Kilit ekranında küçült (chevron) / "Sözler" düğmesiyle aç; lockScreenCollapsed hatırlanır.
   Menü: aç/kapa, görünüm, taraf, yükseklik, "Kilit ekranı önizlemesi (5 sn)".
