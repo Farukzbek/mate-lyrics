@@ -25,6 +25,8 @@
 - Kapağa / plağa tıklayınca **Spotify öne gelir** (sayfa değiştirmeden)
 - Masaüstüne sabitleme (pencerelerin arkasında) veya her zaman üstte
 - Şarkı bazında söz zamanlaması ince ayarı
+- **Kilit ekranında senkron sözler:** macOS'un kilit ekranı oynatıcısının altında altyazı gibi (kutulu yan düzen ve tam kart da seçilebilir); kilit ekranında tek dokunuşla gizle/göster
+- Şarkı değişince sözler bulanık geçişle değişir
 - Menü çubuğu uygulaması, Dock'ta yer kaplamaz; girişte otomatik başlatma
 
 | Kapak | Şeffaf | Kompakt |
@@ -70,6 +72,7 @@ Xcode komut satırı araçları yeterli (Swift 5.9+). Geliştirme için:
 - Çalan şarkı Spotify'dan **AppleScript** ile okunur (API anahtarı ya da giriş gerekmez).
 - Şarkı sözleri topluluk tarafından oluşturulan ücretsiz [LRCLIB](https://lrclib.net) veritabanından gelir; her şarkıda bulunmayabilir.
 - Tamamen SwiftUI + AppKit, harici bağımlılık yok.
+- Kilit ekranı desteği macOS'un **resmi olmayan** SkyLight arayüzünü kullanır ([LockWidget](https://github.com/TechSynth/LockWidget) ve [Boring Notch](https://github.com/TheBoredTeam/boring.notch) ile aynı yöntem). Bir macOS güncellemesiyle çalışmayı bırakabilir; o durumda uygulama çökmez, sadece kilit ekranında görünmez. Menüden kapatılabilir.
 
 ---
 
@@ -79,6 +82,7 @@ Mate Lyrics shows the track currently playing in Spotify as a desktop widget on 
 
 - Three styles (vinyl, cover, compact), four backgrounds, resize from the corner, pin to desktop
 - Synced lyrics from [LRCLIB](https://lrclib.net); click a line to seek; per-song timing offset
+- Lyrics on the lock screen as a subtitle under macOS's own Now Playing (uses the private SkyLight API; may break with macOS updates, can be turned off)
 - Download from [Releases](../../releases), move to Applications, then allow it in **System Settings › Privacy & Security** (the app is not notarized) and allow Spotify automation when asked
 - Requires macOS 14+ and the Spotify desktop app. Build with `./build-app.sh`
 
