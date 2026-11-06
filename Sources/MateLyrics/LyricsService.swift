@@ -50,6 +50,11 @@ final class LyricsService: ObservableObject {
         currentID = track.id
         task?.cancel()
         if let cached = cache[track.id] {
+            #if DEBUG
+            if CommandLine.arguments.contains("--debug-size") {
+                print(String(format: "[%.3f] sözler önbellekten", Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 100)))
+            }
+            #endif
             state = cached
             return
         }

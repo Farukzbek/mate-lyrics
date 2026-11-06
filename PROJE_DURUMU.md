@@ -28,6 +28,13 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
   NSHostingView.updateAnimatedWindowSize pencereyi içeriğe göre boyutlandırıyor; root min 0 çerçevesiyle
   pencereyi 0 genişliğe çekiyordu (söz paneli açılınca "takılma"/kaybolma). Hosting view sade bir NSView
   kabın içinde (widget ve kilit ekranı). Pencereyi sadece resize(to:) boyutlandırır (display: false).
+- resize(to:) boyutları TAM PİKSELE YUVARLAR: ölçek ≠ 1'de 401.9999957 vs pencere 402 → büyüme "küçülme"
+  sanılıp 0.5 sn erteleniyordu, panel pencere dışında görünmeden açılıp birden beliriyordu (kullanıcının
+  "takılma"sı, ölçek 0.95'te). Herhangi bir yönde büyüme varsa hemen uygulanır, sadece küçülme ertelenir.
+- Söz paneli "Sözler yükleniyor" göstermez: yeni şarkı yüklenirken eski sözler bulanık+soluk kalır,
+  yenisi .blurFade geçişiyle gelir (LyricsPanel.shown / shownID).
+- `--test-switch <klasör>`: GERÇEK şarkı değişimi (SpotifyClient.debugSetTrack; kapak + LRCLIB yüklemesi)
+  sırasında ekran karelerini ve ana iş parçacığı kilitlenmelerini ölçer. Kullanıcının ölçeğiyle (ör. 0.95) çalıştır!
 - `--test-screen`: pencerenin EKRANDAKİ halini pencere sunucusundan arka planda ~60 kare/sn yakalar
   (CGWindowListCreateImage dlsym ile; kendi penceresi için izin gerekmez). Söz kapat/aç sırasında sol-üst,
   sağ ve alt kenarı ölçer. Görsel takılma şikâyetlerinde güvenilir ölçüm bu.

@@ -146,40 +146,41 @@ struct LyricsPanel: View {
     let background: BackgroundStyle
     let s: CGFloat
 
+    /// Ekranda gösterilen sözler. Yeni şarkının sözleri yüklenirken eskisi bulanık ve soluk kalır,
+    /// gelince bulanıktan netleşerek yerini alır ("Sözler yükleniyor" yazısı yok — kapak geçişi gibi).
+    @State private var shown: LyricsState?
+    /// Her yeni söz içeriğinde artar; geçiş animasyonu için kimlik.
+    @State private var shownID = 0
+
+    private var isLoading: Bool {
+        if case .idle = lyrics.state { return true }
+        if case .loading = lyrics.state { return true }
+        return false
+    }
+
     var body: some View {
-        Group {
-            switch lyrics.state {
+        ZStack {
+            if let shown {
+                content(shown)
+                    .id(shownID)
+                    .transition(.blurFade(radius: 12 * s))
+            }
+        }
+        .blur(radius: isLoading ? 7 * s : 0)
+        .opacity(isLoading ? 0.4 : 1)
+        .animation(.easeInOut(duration: 0.35), value: isLoading)
+        .onAppear { if !isLoading { shown = lyrics.state } }
+        .onChange(of: lyrics.state) { _, new in
+            switch new {
             case .idle, .loading:
-                placeholder("Sözler yükleniyor…", icon: "text.quote")
-            case .notFound:
-                placeholder("Bu şarkının sözleri bulunamadı", icon: "text.badge.xmark")
-            case .instrumental:
-                placeholder("Enstrümantal ♪", icon: "pianokeys")
-            case .plain(let lines):
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 8 * s) {
-                        Text("Senkron değil").font(.system(size: 10 * s, weight: .semibold)).opacity(0.5)
-                        ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
-                            Text(line.isEmpty ? " " : line)
-                                .font(.system(size: 15 * s, weight: .bold))
-                                .opacity(0.85)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 16 * s)
+                break // eskisi bulanık kalsın
+            default:
+                guard new != shown else { return }
+                active = -1
+                withAnimation(.easeInOut(duration: 0.45)) {
+                    shown = new
+                    shownID += 1
                 }
-                .scrollIndicators(.hidden)
-            case .synced(let lines):
-                SyncedLyrics(lines: lines, active: active, background: background, s: s) {
-                    scroll.reset(animated: true)
-                    spotify.seek(to: $0)
-                }
-                .onReceive(tick) { _ in
-                    updateActive(lines)
-                    scroll.returnIfIdle()
-                }
-                .onAppear { updateActive(lines) }
-                .onChange(of: spotify.track?.id) { _, _ in scroll.reset(animated: false) }
             }
         }
         .clipShape(Rectangle())
@@ -188,6 +189,44 @@ struct LyricsPanel: View {
             .init(color: .clear, location: 0), .init(color: .black, location: 0.12),
             .init(color: .black, location: 0.88), .init(color: .clear, location: 1),
         ], startPoint: .top, endPoint: .bottom))
+    }
+
+    @ViewBuilder private func content(_ state: LyricsState) -> some View {
+        switch state {
+        case .idle, .loading:
+            Color.clear
+        case .notFound:
+            placeholder("Bu şarkının sözleri bulunamadı", icon: "text.badge.xmark")
+        case .instrumental:
+            placeholder("Enstrümantal ♪", icon: "pianokeys")
+        case .plain(let lines):
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8 * s) {
+                    Text("Senkron değil").font(.system(size: 10 * s, weight: .semibold)).opacity(0.5)
+                    ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                        Text(line.isEmpty ? " " : line)
+                            .font(.system(size: 15 * s, weight: .bold))
+                            .opacity(0.85)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 16 * s)
+            }
+            .scrollIndicators(.hidden)
+        case .synced(let lines):
+            SyncedLyrics(lines: lines, active: active, background: background, s: s) {
+                scroll.reset(animated: true)
+                spotify.seek(to: $0)
+            }
+            .onReceive(tick) { _ in
+                // Yeni şarkının sözleri yüklenirken eski sözler (bulanık) kaymasın
+                guard !isLoading else { return }
+                updateActive(lines)
+                scroll.returnIfIdle()
+            }
+            .onAppear { updateActive(lines) }
+            .onChange(of: spotify.track?.id) { _, _ in scroll.reset(animated: false) }
+        }
     }
 
     @State private var active = -1
@@ -334,3 +373,16 @@ enum LyricsLayout {
     }
 }
 
+
+/// Bulanıktan netleşerek beliren / bulanıklaşarak kaybolan geçiş.
+private struct BlurFade: ViewModifier {
+    let radius: CGFloat
+    let opacity: Double
+    func body(content: Content) -> some View { content.blur(radius: radius).opacity(opacity) }
+}
+
+extension AnyTransition {
+    static func blurFade(radius: CGFloat) -> AnyTransition {
+        .modifier(active: BlurFade(radius: radius, opacity: 0), identity: BlurFade(radius: 0, opacity: 1))
+    }
+}

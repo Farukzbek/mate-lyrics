@@ -57,7 +57,23 @@ final class SpotifyClient: ObservableObject {
     end tell
     """)!
 
+    #if DEBUG
+    /// Geliştirme: gerçek Spotify sorgusunu durdurup sahte "çalan şarkı" ayarlamak için.
+    var debugFrozen = false
+    func debugSetTrack(_ t: Track) {
+        debugFrozen = true
+        isRunning = true
+        isPlaying = true
+        position = 30
+        positionDate = Date()
+        track = t
+    }
+    #endif
+
     func refresh() {
+        #if DEBUG
+        if debugFrozen { return }
+        #endif
         let running = !NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundleID).isEmpty
         guard running else {
             if isRunning { isRunning = false }

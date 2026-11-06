@@ -358,6 +358,102 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        if let i = CommandLine.arguments.firstIndex(of: "--test-switch"), i + 1 < CommandLine.arguments.count {
+            // GERÇEK şarkı değişimi: kapak indirilir, sözler LRCLIB'den çekilir. Bu sırada
+            // (1) ana iş parçacığı kilitlenmeleri, (2) ekrandaki kartın sağ/alt kenarı ölçülür.
+            let dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+            typealias Capture = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
+            let capture = unsafeBitCast(dlsym(dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", RTLD_NOW),
+                                              "CGWindowListCreateImage")!, to: Capture.self)
+            let windowID = UInt32(panel.windowNumber)
+            let art = "https://i.scdn.co/image/ab67616d0000b2732c85aff7dc2edbfd62ed9cfc"
+            let withLyrics = Track(id: "test:A", name: "Mangır", artist: "Ceg", album: "Trapanasyon",
+                                   duration: 249.18, artworkURL: URL(string: art))
+            let noLyrics = Track(id: "test:B", name: "Sözsüz Deneme Parçası Xq", artist: "Kimse Değil Zz",
+                                 album: "Yok", duration: 200, artworkURL: URL(string: art + "?b"))
+            let otherLyrics = Track(id: "test:C", name: "TEQUILA SUNRISE", artist: "Jefe", album: "TEQUILA SUNRISE",
+                                    duration: 158.5, artworkURL: URL(string: art + "?c"))
+
+            func edges(_ img: CGImage) -> String {
+                let w = img.width, h = img.height
+                var data = [UInt8](repeating: 0, count: w * h * 4)
+                let ctx = CGContext(data: &data, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+                ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+                var maxX = 0, maxRow = 0
+                for row in stride(from: 0, to: h, by: 2) {
+                    for x in stride(from: 0, to: w, by: 2) where data[(row * w + x) * 4 + 3] > 77 {
+                        maxX = max(maxX, x); maxRow = max(maxRow, row)
+                    }
+                }
+                return String(format: "pencere %dx%d sağ %d alt %d", w / 2, h / 2, maxX / 2, maxRow / 2)
+            }
+            func record(_ name: String, seconds: Double, saveAs prefix: String? = nil, then: @escaping () -> Void) {
+                let start = Date()
+                var frames: [String] = []
+                var stalls: [String] = []
+                let group = DispatchGroup()
+                group.enter()
+                DispatchQueue.global(qos: .userInteractive).async {
+                    while Date().timeIntervalSince(start) < seconds {
+                        let t = Date().timeIntervalSince(start)
+                        if let img = capture(.null, 8, windowID, 1 | 8)?.takeRetainedValue() {
+                            frames.append(String(format: "t=%.3f ", t) + edges(img))
+                            if let prefix, frames.count % 6 == 1 {
+                                let rep = NSBitmapImageRep(cgImage: img)
+                                try? rep.representation(using: .png, properties: [:])?
+                                    .write(to: dir.appendingPathComponent(String(format: "%@-%04.0f.png", prefix, t * 1000)))
+                            }
+                        }
+                        Thread.sleep(forTimeInterval: 0.010)
+                    }
+                    group.leave()
+                }
+                group.enter()
+                DispatchQueue.global(qos: .userInteractive).async {
+                    // ana iş parçacığına 5 ms'de bir dürt; cevap gecikmesi > 25 ms ise kilitlenme
+                    while Date().timeIntervalSince(start) < seconds {
+                        let sent = Date()
+                        let sem = DispatchSemaphore(value: 0)
+                        DispatchQueue.main.async { sem.signal() }
+                        sem.wait()
+                        let delay = Date().timeIntervalSince(sent)
+                        if delay > 0.025 {
+                            stalls.append(String(format: "  ana iş parçacığı KİLİTLİ: t=%.3f  %.0f ms",
+                                                 sent.timeIntervalSince(start), delay * 1000))
+                        }
+                        Thread.sleep(forTimeInterval: 0.005)
+                    }
+                    group.leave()
+                }
+                group.notify(queue: .main) {
+                    print("==", name)
+                    var prev = ""
+                    for f in frames {
+                        let key = f.split(separator: " ").dropFirst().joined(separator: " ")
+                        if key != prev { print(f) }
+                        prev = key
+                    }
+                    stalls.forEach { print($0) }
+                    if stalls.isEmpty { print("  ana iş parçacığı kilitlenmesi yok") }
+                    then()
+                }
+            }
+            spotify.debugSetTrack(withLyrics)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [self] in
+                record("SÖZLÜ → SÖZSÜZ (gerçek yükleme)", seconds: 3) { [self] in
+                    record("SÖZSÜZ → SÖZLÜ, önbellekte", seconds: 2.5) { [self] in
+                        record("SÖZLÜ → BAŞKA SÖZLÜ, internetten", seconds: 3, saveAs: "gecis") {
+                            exit(0)
+                        }
+                        spotify.debugSetTrack(otherLyrics)
+                    }
+                    print(String(format: "[%.3f] şarkı → sözlü (önbellekte)", Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 100)))
+                    spotify.debugSetTrack(withLyrics)
+                }
+                spotify.debugSetTrack(noLyrics)
+            }
+        }
         if CommandLine.arguments.contains("--test-jitter") {
             // Söz paneli açılıp kapanırken kartın sol üst köşesi ekranda kımıldıyor mu? Her 0.08 sn ölç.
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
@@ -591,7 +687,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var lastContentSize = CGSize.zero
 
-    private func resize(to size: CGSize) {
+    private func resize(to rawSize: CGSize) {
+        // Ölçek 1 değilken boyutlar 401.9999957 gibi çıkıyor; pencere 402. Yuvarlamadan karşılaştırınca
+        // büyüme "küçülme" sanılıp 0.5 sn erteleniyordu: panel pencere dışında görünmeden açılıp
+        // sonra birden beliriyordu (kullanıcının "takılma"sı). Tam piksele yuvarla.
+        let size = CGSize(width: rawSize.width.rounded(), height: rawSize.height.rounded())
         guard size.width > 0, size.height > 0 else { return }
         lastContentSize = size
         pendingShrink?.cancel()
@@ -599,8 +699,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard panel.frame.size != size else { return }
         // Büyürken hemen; küçülürken (söz paneli kapanırken) animasyon bitince küçül, yoksa panel yarıda kesilir.
         // Köşeden elle boyutlandırırken gecikme olmasın.
-        let shrinking = size.width < panel.frame.width || size.height < panel.frame.height
-        if CommandLine.arguments.contains("--debug-size") { print("resize", size, "küçülme:", shrinking, "elle:", settings.isResizing) }
+        // Herhangi bir yönde büyüme varsa hemen uygula (içerik pencereden taşmasın); sadece küçülme ertelenir.
+        let growing = size.width > panel.frame.width || size.height > panel.frame.height
+        let shrinking = !growing
+        if CommandLine.arguments.contains("--debug-size") {
+            print(String(format: "[%.3f]", Date().timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 100)),
+                  "resize", size, "küçülme:", shrinking, "elle:", settings.isResizing)
+        }
         if shrinking && !settings.isResizing {
             let work = DispatchWorkItem { [weak self] in self?.applyFrame(size) }
             pendingShrink = work
