@@ -93,7 +93,13 @@ final class LockScreenController {
         let host = NSHostingView(rootView: LockScreenView(
             spotify: spotify, lyrics: lyrics, artwork: artwork, settings: settings))
         host.sizingOptions = [] // pencere boyutunu place() belirler, görünüm pencereyi doldurur
-        panel.contentView = host
+        // contentView doğrudan hosting view olunca SwiftUI pencereyi yine de kendi boyutlandırabiliyor
+        // (masaüstü widget'ında bulundu); sade bir kabın içine koy.
+        let container = NSView(frame: NSRect(origin: .zero, size: Self.cardWindowSize))
+        host.frame = container.bounds
+        host.autoresizingMask = [.width, .height]
+        container.addSubview(host)
+        panel.contentView = container
 
         // Düzen / taraf / yükseklik değişince görünürse yeniden yerleş
         settingsObserver = settings.objectWillChange.sink { [weak self] _ in

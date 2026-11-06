@@ -23,7 +23,14 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
   Root çerçevesi minWidth/minHeight: 0 olmalı: yoksa içerik pencereden büyük olduğu ilk anda (büyüme öncesi)
   SwiftUI taşan içeriği ortalıyor, kart 75 pt düşüp geri geliyordu (söz paneli açılınca). Yatay düzende
   HStack .frame(height:, alignment: .top) (şeffafta sözler kapanınca sol kutu 10 pt kayıyordu).
-  Test: `--test-jitter` (kartın ekrandaki sol üst köşesini gerçek zamanla ölçer; ilk örnek ara kare olabilir).
+  Test: `--test-jitter` (cacheDisplay ile zorla çizdirir; ilk örnek yanıltıcı olabilir).
+- ÖNEMLİ: NSHostingView pencerenin contentView'u OLMAMALI. Öyleyken sizingOptions = [] olsa bile
+  NSHostingView.updateAnimatedWindowSize pencereyi içeriğe göre boyutlandırıyor; root min 0 çerçevesiyle
+  pencereyi 0 genişliğe çekiyordu (söz paneli açılınca "takılma"/kaybolma). Hosting view sade bir NSView
+  kabın içinde (widget ve kilit ekranı). Pencereyi sadece resize(to:) boyutlandırır (display: false).
+- `--test-screen`: pencerenin EKRANDAKİ halini pencere sunucusundan arka planda ~60 kare/sn yakalar
+  (CGWindowListCreateImage dlsym ile; kendi penceresi için izin gerekmez). Söz kapat/aç sırasında sol-üst,
+  sağ ve alt kenarı ölçer. Görsel takılma şikâyetlerinde güvenilir ölçüm bu.
   Test: `--test-scale`, `--test-drag`, `--test-autohide <klasör>` (DEBUG).
 - Söz paneli otomatik: görünürlük = showLyrics (kullanıcı tercihi) && (lyrics.available || bu şarkıda elle açıldı).
   available yüklenirken önceki değeri korur. Kapanış: yerinde solma; açılış: kenardan kayma.

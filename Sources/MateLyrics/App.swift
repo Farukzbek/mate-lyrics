@@ -166,7 +166,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         panel = WidgetPanel(contentRect: NSRect(x: 0, y: 0, width: 400, height: 400),
                             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        panel.contentView = host
+        // Hosting view pencerenin contentView'u OLMASIN: öyle olunca sizingOptions = [] olsa bile SwiftUI
+        // (NSHostingView.updateAnimatedWindowSize) pencereyi kendi içeriğine göre boyutlandırıyordu;
+        // söz paneli açılırken pencereyi geri küçültüp 0 genişliğe kadar çekiyordu (çağrı izinden bulundu).
+        // Sade bir kabın içinde, pencereyi sadece resize(to:) boyutlandırır.
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 400, height: 400))
+        host.frame = container.bounds
+        host.autoresizingMask = [.width, .height]
+        container.addSubview(host)
+        panel.contentView = container
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = false
@@ -289,24 +297,87 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 next()
             }
         }
+        if CommandLine.arguments.contains("--test-screen") {
+            // Pencerenin ekrana GERÇEKTEN basılmış halini pencere sunucusundan, arka planda ~60 kare/sn yakalar.
+            // Uygulamanın çizimine karışmaz (--test-jitter zorla çizdirdiği için ilk kareyi yanıltabiliyordu).
+            typealias Capture = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
+            let handle = dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", RTLD_NOW)
+            guard let sym = dlsym(handle, "CGWindowListCreateImage") else { print("yakalama yok"); exit(1) }
+            let capture = unsafeBitCast(sym, to: Capture.self)
+            let windowID = UInt32(panel.windowNumber)
+            let synced = LyricsState.synced((0..<300).map { LyricLine(id: $0, time: Double($0), text: "Satır \($0)") })
+
+            func edges(_ img: CGImage) -> String {
+                // görüntünün sol üstünden: sağ ve alt kenar (nokta cinsinden, 2x ekran)
+                let w = img.width, h = img.height
+                var data = [UInt8](repeating: 0, count: w * h * 4)
+                let ctx = CGContext(data: &data, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+                ctx.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
+                var maxX = 0, maxRow = 0, minX = Int.max, minRow = Int.max
+                for row in stride(from: 0, to: h, by: 2) {
+                    for x in stride(from: 0, to: w, by: 2) where data[(row * w + x) * 4 + 3] > 77 {
+                        maxX = max(maxX, x); maxRow = max(maxRow, row); minX = min(minX, x); minRow = min(minRow, row)
+                    }
+                }
+                // bellekte ilk satır görüntünün üstü: maxRow = en alttaki dolu satırın üstten mesafesi
+                return String(format: "pencere %dx%d  sol-üst (%d,%d)  sağ %d  alt %d",
+                              w / 2, h / 2, minX / 2, minRow / 2, maxX / 2, maxRow / 2)
+            }
+            func record(_ name: String, then: @escaping () -> Void) {
+                print("==", name)
+                let start = Date()
+                DispatchQueue.global(qos: .userInteractive).async {
+                    var lines: [String] = []
+                    while Date().timeIntervalSince(start) < 4 {
+                        let t = Date().timeIntervalSince(start)
+                        if let img = capture(.null, 8, windowID, 1 | 8)?.takeRetainedValue() {
+                            lines.append(String(format: "t=%.3f  ", t) + edges(img))
+                        }
+                        Thread.sleep(forTimeInterval: 0.012)
+                    }
+                    DispatchQueue.main.async { lines.forEach { print($0) }; then() }
+                }
+            }
+            // Gerçek şarkının söz sorgusu bitsin, sonra örnek sözlerle başla
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [self] in
+                lyrics.debugSet(synced)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [self] in
+                    record("SÖZ YOK'A GEÇİŞ") {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [self] in
+                            record("SÖZ VAR'A GEÇİŞ") { [self] in
+                                print("son durum: available =", lyrics.available, "showLyrics =", settings.showLyrics,
+                                      "state synced mi:", { if case .synced = lyrics.state { true } else { false } }())
+                                exit(0)
+                            }
+                            lyrics.debugSet(synced)
+                            print("debugSet sonrası available =", lyrics.available)
+                        }
+                    }
+                    lyrics.debugSet(.notFound)
+                }
+            }
+        }
         if CommandLine.arguments.contains("--test-jitter") {
             // Söz paneli açılıp kapanırken kartın sol üst köşesi ekranda kımıldıyor mu? Her 0.08 sn ölç.
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
                 @MainActor func cardTopLeft() -> String {
                     guard let v = panel.contentView, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return "-" }
                     v.cacheDisplay(in: v.bounds, to: rep)
-                    var minX = Int.max, minY = Int.max
-                    for y in stride(from: 0, to: rep.pixelsHigh, by: 2) {
-                        for x in stride(from: 0, to: rep.pixelsWide, by: 2) where (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.3 {
-                            minX = min(minX, x); minY = min(minY, y)
+                    var minX = Int.max, minY = Int.max, maxX = 0, maxY = 0
+                    for y in stride(from: 0, to: rep.pixelsHigh, by: 6) {
+                        for x in stride(from: 0, to: rep.pixelsWide, by: 3) where (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.3 {
+                            minX = min(minX, x); minY = min(minY, y); maxX = max(maxX, x); maxY = max(maxY, y)
                         }
                     }
                     let scale = CGFloat(rep.pixelsWide) / v.bounds.width
                     // ekran koordinatı: pencere sol üst + kart ofseti
                     let sx = panel.frame.minX + CGFloat(minX) / scale
                     let sy = panel.frame.maxY - CGFloat(minY) / scale
-                    return String(format: "pencere x=%.0f üst=%.0f %.0fx%.0f | kart sol-üst ekranda (%.0f, %.0f)",
-                                  panel.frame.minX, panel.frame.maxY, panel.frame.width, panel.frame.height, sx, sy)
+                    let rightEdge = panel.frame.minX + CGFloat(maxX) / scale
+                    let bottomEdge = panel.frame.maxY - CGFloat(maxY) / scale
+                    return String(format: "pencere x=%.0f üst=%.0f %.0fx%.0f | kart sol-üst ekranda (%.0f, %.0f) sağ %.0f alt %.0f",
+                                  panel.frame.minX, panel.frame.maxY, panel.frame.width, panel.frame.height, sx, sy, rightEdge, bottomEdge)
                 }
                 let synced = LyricsState.synced((0..<300).map { LyricLine(id: $0, time: Double($0), text: "Satır \($0)") })
                 let plan: [(String, LyricsState)] = [("SÖZ YOK'A GEÇİŞ", .notFound), ("SÖZ VAR'A GEÇİŞ", synced)]
@@ -543,8 +614,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard panel.frame.size != size else { return }
         let top = panel.frame.maxY
         anchoringTop = true
+        // display: false — zorla çizdirme: yoksa ilk kare animasyon başlamadan son haliyle çiziliyor,
+        // panel bir an tam açık görünüp kapanıyor, sonra animasyonla yeniden açılıyordu (ölçüldü).
         panel.setFrame(NSRect(x: panel.frame.minX, y: top - size.height, width: size.width, height: size.height),
-                       display: true)
+                       display: false)
         anchoringTop = false
     }
 
