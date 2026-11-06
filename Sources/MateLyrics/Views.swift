@@ -105,8 +105,10 @@ struct WidgetView: View {
         let lyricsPanel = LyricsPanel(spotify: spotify, lyrics: lyrics, settings: settings, background: settings.background, s: s)
         switch settings.style {
         case .vinyl, .cover:
+            // Şeffafta kutuların iç boşlukları ve aralıkları, toplam boyut diğer arka planlarla birebir aynı
+            // olacak şekilde seçildi (genişlik: 260 + 12 + 308+20 = 600; yükseklik sabit çerçeveye sığar).
             HStack(alignment: .top, spacing: transparent ? 12 * s : 0) {
-                VStack(spacing: transparent ? 12 * s : 14 * s) {
+                VStack(spacing: transparent ? 8 * s : 14 * s) {
                     Group {
                         if settings.style == .vinyl {
                             VinylDisc(image: artwork.image, isPlaying: spotify.isPlaying, s: s)
@@ -120,29 +122,29 @@ struct WidgetView: View {
                         }
                     }
                     .frame(width: 240 * s)
-                    .sectionBox(transparent, s: s)
+                    .sectionBox(transparent, s: s, padding: 10)
 
-                    VStack(spacing: 14 * s) {
+                    VStack(spacing: transparent ? 10 * s : 14 * s) {
                         TrackInfo(track: track, s: s, alignment: .center)
                         ProgressRow(spotify: spotify, duration: track.duration, s: s)
                         Controls(spotify: spotify, showLyrics: lyricsToggle, s: s)
                     }
                     .frame(width: 240 * s)
-                    .sectionBox(transparent, s: s)
+                    .sectionBox(transparent, s: s, padding: 10)
                 }
                 .padding(transparent ? 0 : 20 * s)
 
                 if lyricsVisible {
                     lyricsPanel
-                        .frame(width: 300 * s)
+                        .frame(width: (transparent ? 308 : 300) * s)
                         .padding(.vertical, transparent ? 0 : 20 * s)
                         .padding(.trailing, transparent ? 0 : 20 * s)
                         .frame(maxHeight: .infinity)
-                        .sectionBox(transparent, s: s)
+                        .sectionBox(transparent, s: s, padding: 10)
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                 }
             }
-            .frame(height: (settings.style == .vinyl ? 400 : 390) * s + (transparent ? 40 * s : 0), alignment: .top)
+            .frame(height: (settings.style == .vinyl ? 400 : 390) * s, alignment: .top)
 
         case .compact:
             VStack(spacing: 0) {
@@ -162,14 +164,15 @@ struct WidgetView: View {
               .sectionBox(transparent, s: s)
                 if lyricsVisible {
                     lyricsPanel
-                        .frame(height: 170 * s)
+                        .frame(height: (transparent ? 150 : 170) * s)
                         .sectionBox(transparent, s: s)
-                        .padding(.top, 12 * s)
+                        // Şeffafta kutu boşlukları eklendiği için söz alanı ve aralık küçük: toplam yükseklik aynı
+                        .padding(.top, (transparent ? 8 : 12) * s)
                         .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
                 }
             }
             .padding(transparent ? 0 : 16 * s)
-            .frame(width: 360 * s + (transparent ? 0 : 0))
+            .frame(width: 360 * s)
         }
     }
 }
@@ -449,10 +452,10 @@ extension View {
     }
 
     /// Şeffaf modda her bölümün arkasına yarı şeffaf, yuvarlak köşeli kutu koyar.
-    @ViewBuilder func sectionBox(_ on: Bool, s: CGFloat) -> some View {
+    @ViewBuilder func sectionBox(_ on: Bool, s: CGFloat, padding: CGFloat = 14) -> some View {
         if on {
             self
-                .padding(14 * s)
+                .padding(padding * s)
                 .background(
                     RoundedRectangle(cornerRadius: 18 * s, style: .continuous)
                         .fill(.black.opacity(0.42))

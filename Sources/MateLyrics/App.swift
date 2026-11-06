@@ -271,6 +271,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 next()
             }
         }
+        if CommandLine.arguments.contains("--test-sizes") {
+            // Her görünüm × arka plan için widget boyutu: arka plan değişince boyut değişmemeli
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
+                let combos = WidgetStyle.allCases.flatMap { st in BackgroundStyle.allCases.map { (st, $0) } }
+                var rest = combos[...]
+                @MainActor func next() {
+                    guard let (st, bg) = rest.popFirst() else { exit(0) }
+                    settings.style = st
+                    settings.background = bg
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [self] in MainActor.assumeIsolated {
+                        print(st.rawValue.padding(toLength: 8, withPad: " ", startingAt: 0),
+                              bg.rawValue.padding(toLength: 12, withPad: " ", startingAt: 0), lastContentSize)
+                        next()
+                    } }
+                }
+                next()
+            }
+        }
         if CommandLine.arguments.contains("--test-jitter") {
             // Söz paneli açılıp kapanırken kartın sol üst köşesi ekranda kımıldıyor mu? Her 0.08 sn ölç.
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
