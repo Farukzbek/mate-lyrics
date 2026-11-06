@@ -20,6 +20,10 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
   AppDelegate.contentSizeChanged'i çağırır → resize(to:). Büyüme anında, küçülme 0.5 sn gecikmeli
   (söz paneli kapanma animasyonu kesilmesin; elle boyutlandırmada gecikme yok). İçerik pencerede topLeading.
   Not: root'taki onPreferenceChange ve NSHostingView intrinsic bildirimi güvenilir değildi.
+  Root çerçevesi minWidth/minHeight: 0 olmalı: yoksa içerik pencereden büyük olduğu ilk anda (büyüme öncesi)
+  SwiftUI taşan içeriği ortalıyor, kart 75 pt düşüp geri geliyordu (söz paneli açılınca). Yatay düzende
+  HStack .frame(height:, alignment: .top) (şeffafta sözler kapanınca sol kutu 10 pt kayıyordu).
+  Test: `--test-jitter` (kartın ekrandaki sol üst köşesini gerçek zamanla ölçer; ilk örnek ara kare olabilir).
   Test: `--test-scale`, `--test-drag`, `--test-autohide <klasör>` (DEBUG).
 - Söz paneli otomatik: görünürlük = showLyrics (kullanıcı tercihi) && (lyrics.available || bu şarkıda elle açıldı).
   available yüklenirken önceki değeri korur. Kapanış: yerinde solma; açılış: kenardan kayma.

@@ -154,7 +154,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let root = WidgetView(spotify: spotify, lyrics: lyrics, artwork: artwork, settings: settings)
             .fixedSize()
             // Pencere içerikten büyükken (kapanma animasyonu sürerken) içerik sol üstte dursun, ortaya kaymasın
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            // min 0: içerik pencereden büyük olduğu ilk anda (büyüme öncesi) çerçeve içerikle büyüyüp
+            // ortalanmasın; içerik sol üstte kalsın, taşan kısım pencere büyüyene kadar kesilsin.
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
         let host = NSHostingView(rootView: root)
         // İçerik boyutu değişince (söz aç/kapa, görünüm, ölçek) pencere tam içerik kadar olsun;
         // sol üst köşe sabit kalsın. Böylece köşe tutamağı hep pencerenin sağ alt köşesinde.
@@ -180,6 +182,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         restorePosition()
 
+        if CommandLine.arguments.contains("--debug-size") {
+            NotificationCenter.default.publisher(for: NSWindow.didResizeNotification, object: panel)
+                .sink { [weak self] _ in
+                    guard let self else { return }
+                    print("  pencere boyutu değişti →", self.panel.frame.size, "applyFrame içinde mi:", self.anchoringTop)
+                    if !self.anchoringTop { Thread.callStackSymbols.prefix(14).forEach { print("     ", $0) } }
+                }.store(in: &bag)
+        }
         NotificationCenter.default.publisher(for: NSWindow.didMoveNotification, object: panel)
             .sink { [weak self] _ in self?.savePosition() }.store(in: &bag)
         lockScreen = LockScreenController(spotify: spotify, lyrics: lyrics, artwork: artwork, settings: settings)
@@ -259,6 +269,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     } }
                 }
                 next()
+            }
+        }
+        if CommandLine.arguments.contains("--test-jitter") {
+            // Söz paneli açılıp kapanırken kartın sol üst köşesi ekranda kımıldıyor mu? Her 0.08 sn ölç.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
+                @MainActor func cardTopLeft() -> String {
+                    guard let v = panel.contentView, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { return "-" }
+                    v.cacheDisplay(in: v.bounds, to: rep)
+                    var minX = Int.max, minY = Int.max
+                    for y in stride(from: 0, to: rep.pixelsHigh, by: 2) {
+                        for x in stride(from: 0, to: rep.pixelsWide, by: 2) where (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.3 {
+                            minX = min(minX, x); minY = min(minY, y)
+                        }
+                    }
+                    let scale = CGFloat(rep.pixelsWide) / v.bounds.width
+                    // ekran koordinatı: pencere sol üst + kart ofseti
+                    let sx = panel.frame.minX + CGFloat(minX) / scale
+                    let sy = panel.frame.maxY - CGFloat(minY) / scale
+                    return String(format: "pencere x=%.0f üst=%.0f %.0fx%.0f | kart sol-üst ekranda (%.0f, %.0f)",
+                                  panel.frame.minX, panel.frame.maxY, panel.frame.width, panel.frame.height, sx, sy)
+                }
+                let synced = LyricsState.synced((0..<300).map { LyricLine(id: $0, time: Double($0), text: "Satır \($0)") })
+                let plan: [(String, LyricsState)] = [("SÖZ YOK'A GEÇİŞ", .notFound), ("SÖZ VAR'A GEÇİŞ", synced)]
+                var rest = plan[...]
+                lyrics.debugSet(synced)
+                @MainActor func next() {
+                    guard let (name, state) = rest.popFirst() else { exit(0) }
+                    print("==", name)
+                    lyrics.debugSet(state)
+                    var t = 0
+                    let start = Date()
+                    @MainActor func sample() {
+                        print(String(format: "t=%.3f ", Date().timeIntervalSince(start)), cardTopLeft())
+                        t += 1
+                        if t <= 20 {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.016) { MainActor.assumeIsolated { sample() } }
+                        } else { next() }
+                    }
+                    sample()
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { MainActor.assumeIsolated { next() } }
             }
         }
         if let i = CommandLine.arguments.firstIndex(of: "--test-autohide"), i + 1 < CommandLine.arguments.count {

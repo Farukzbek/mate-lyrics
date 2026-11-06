@@ -142,7 +142,7 @@ struct WidgetView: View {
                         .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
                 }
             }
-            .frame(height: (settings.style == .vinyl ? 400 : 390) * s + (transparent ? 40 * s : 0))
+            .frame(height: (settings.style == .vinyl ? 400 : 390) * s + (transparent ? 40 * s : 0), alignment: .top)
 
         case .compact:
             VStack(spacing: 0) {
