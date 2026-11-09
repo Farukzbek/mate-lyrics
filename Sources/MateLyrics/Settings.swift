@@ -75,6 +75,8 @@ final class Settings: ObservableObject {
     @AppStorage("showLyrics") var showLyrics = true
     @AppStorage("pinToDesktop") var pinToDesktop = true
     @AppStorage("widgetVisible") var widgetVisible = true
+    /// Açıksa Spotify kapalıyken widget "Spotify'ı aç" kartını gösterir; kapalıysa widget gizlenir.
+    @AppStorage("showWhenSpotifyClosed") var showWhenSpotifyClosed = true
     /// Kilitliyken widget taşınamaz ve köşeden boyutlandırılamaz.
     @AppStorage("lockPosition") var lockPosition = false
     /// Ekran kilitliyken kilit ekranında şarkı + sözler kartı göster.

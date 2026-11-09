@@ -70,6 +70,8 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
   Menü: aç/kapa, görünüm, taraf, yükseklik, "Kilit ekranı önizlemesi (5 sn)".
   Test: `.build/debug/MateLyrics --test-lockscreen <png>` (önizleme görüntüsü; gerçek kilit ekranını test edemez).
 - Proje 2026-10 itibarıyla ~/Desktop/Mate Studios/mate-lyrics'te (taşınınca .build silinmeli, modül önbelleği eski yolu tutuyor).
+- "Spotify kapalıyken göster" (Settings.showWhenSpotifyClosed, varsayılan açık): kapalıysa Spotify kapanınca
+  widget soluyarak gizlenir, açılınca geri gelir (AppDelegate.updateVisibility, spotify.$isRunning). Test: `--test-visibility`.
 - Şarkı başında üst boşluk yok: offset üstten %10'a sınırlı, aktif satır %35'e gelince kaymaya başlar.
 - Spotify'ın kendi söz API'si yok/kapalı; sözler LRCLIB'den.
 

@@ -19,6 +19,8 @@ struct MenuContent: View {
 
     var body: some View {
         Toggle("Widget'ı göster", isOn: $settings.widgetVisible)
+        Toggle("Spotify kapalıyken göster", isOn: $settings.showWhenSpotifyClosed)
+            .disabled(!settings.widgetVisible)
         Divider()
         ContextMenuItems(settings: settings, spotify: spotify)
         Divider()
@@ -208,6 +210,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.applySettings() }.store(in: &bag)
+        // Spotify açılıp kapanınca görünürlüğü güncelle ("Spotify kapalıyken göster" kapalıysa gizlenir)
+        spotify.$isRunning
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateVisibility() }.store(in: &bag)
 
         applySettings()
 
@@ -454,6 +461,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 spotify.debugSetTrack(noLyrics)
             }
         }
+        if CommandLine.arguments.contains("--test-visibility") {
+            // Spotify kapalı/açık × "Spotify kapalıyken göster" açık/kapalı → widget görünür mü?
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [self] in
+                let steps: [(String, Bool, Bool, Bool)] = [  // ad, spotify açık, ayar, beklenen
+                    ("Spotify açık, ayar açık", true, true, true),
+                    ("Spotify kapalı, ayar açık", false, true, true),
+                    ("Spotify kapalı, ayar kapalı", false, false, false),
+                    ("Spotify açıldı, ayar kapalı", true, false, true),
+                    ("Spotify tekrar kapandı, ayar kapalı", false, false, false),
+                    ("Ayar açıldı (Spotify kapalı)", false, true, true),
+                ]
+                var rest = steps[...]
+                @MainActor func next() {
+                    guard let (name, running, setting, expected) = rest.popFirst() else { exit(0) }
+                    settings.showWhenSpotifyClosed = setting
+                    spotify.debugSetRunning(running)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [self] in MainActor.assumeIsolated {
+                        let visible = panel.isVisible && panel.alphaValue > 0.9
+                        print(visible == expected ? "✓" : "✗", name, "→ görünür:", visible)
+                        next()
+                    } }
+                }
+                next()
+            }
+        }
         if CommandLine.arguments.contains("--test-jitter") {
             // Söz paneli açılıp kapanırken kartın sol üst köşesi ekranda kımıldıyor mu? Her 0.08 sn ölç.
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
@@ -670,7 +702,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.level = settings.pinToDesktop
             ? NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
             : .floating
-        if settings.widgetVisible { panel.orderFrontRegardless() } else { panel.orderOut(nil) }
+        updateVisibility()
+    }
+
+    /// Widget görünür mü: kullanıcı göster dediyse ve (Spotify açıksa ya da kapalıyken de göster seçiliyse).
+    private var shouldShowWidget: Bool {
+        settings.widgetVisible && (spotify.isRunning || settings.showWhenSpotifyClosed)
+    }
+    private var widgetShown = false
+
+    /// Yumuşak göster/gizle.
+    private func updateVisibility() {
+        let show = shouldShowWidget
+        guard show != widgetShown || (show && !panel.isVisible) else { return }
+        widgetShown = show
+        if show {
+            if !panel.isVisible { panel.alphaValue = 0 }
+            panel.orderFrontRegardless()
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.3
+                panel.animator().alphaValue = 1
+            }
+        } else {
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.3
+                panel.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                MainActor.assumeIsolated {
+                    // Bu arada tekrar gösterilmesi istendiyse kapatma
+                    guard let self, !self.widgetShown else { return }
+                    self.panel.orderOut(nil)
+                }
+            })
+        }
     }
 
     // MARK: - Konum
