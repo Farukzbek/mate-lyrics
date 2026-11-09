@@ -24,6 +24,7 @@
 - Sözleri **iki parmakla kaydırma** (3 sn sonra çalan satıra döner)
 - Kapağa / plağa tıklayınca **Spotify öne gelir** (sayfa değiştirmeden)
 - Masaüstüne sabitleme (pencerelerin arkasında) veya her zaman üstte
+- Spotify kapalıyken widget'ı göster ("Spotify'ı aç") ya da tamamen gizle
 - Şarkı bazında söz zamanlaması ince ayarı
 - **Kilit ekranında senkron sözler:** macOS'un kilit ekranı oynatıcısının altında altyazı gibi (kutulu yan düzen ve tam kart da seçilebilir); kilit ekranında tek dokunuşla gizle/göster
 - Şarkı değişince sözler bulanık geçişle değişir
