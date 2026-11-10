@@ -55,6 +55,21 @@ extension Notification.Name {
     static let lockScreenPreview = Notification.Name("mate.lockScreenPreview")
 }
 
+/// Pencere içeriğin boyutundan farklıyken (büyüme öncesi / küçülme gecikmesi) içerik sabit köşeye yaslanır:
+/// serbest konumda sol üst, hazır konumda o konumun köşesi. Yoksa widget büyüyüp küçülürken kayar.
+/// min 0: içerik pencereden büyük olduğu ilk anda çerçeve içerikle büyüyüp ortalanmasın.
+struct WidgetRoot: View {
+    @ObservedObject var settings: Settings
+    let content: WidgetView
+
+    var body: some View {
+        content
+            .fixedSize()
+            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity,
+                   alignment: settings.positionPreset.alignment)
+    }
+}
+
 /// Kenarlıksız, şeffaf panel. Taşıma ve köşeden boyutlandırmayı kendisi yönetir:
 /// sağ alt köşede başlayan sürükleme ölçeği değiştirir, başka yerde başlayan pencereyi taşır.
 final class WidgetPanel: NSPanel {
@@ -153,12 +168,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        let root = WidgetView(spotify: spotify, lyrics: lyrics, artwork: artwork, settings: settings)
-            .fixedSize()
-            // Pencere içerikten büyükken (kapanma animasyonu sürerken) içerik sol üstte dursun, ortaya kaymasın
-            // min 0: içerik pencereden büyük olduğu ilk anda (büyüme öncesi) çerçeve içerikle büyüyüp
-            // ortalanmasın; içerik sol üstte kalsın, taşan kısım pencere büyüyene kadar kesilsin.
-            .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
+        let root = WidgetRoot(settings: settings,
+                              content: WidgetView(spotify: spotify, lyrics: lyrics, artwork: artwork, settings: settings))
         let host = NSHostingView(rootView: root)
         // İçerik boyutu değişince (söz aç/kapa, görünüm, ölçek) pencere tam içerik kadar olsun;
         // sol üst köşe sabit kalsın. Böylece köşe tutamağı hep pencerenin sağ alt köşesinde.
@@ -205,6 +216,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lockScreen = LockScreenController(spotify: spotify, lyrics: lyrics, artwork: artwork, settings: settings)
         NotificationCenter.default.publisher(for: .lockScreenPreview)
             .sink { [weak self] _ in self?.lockScreen.preview() }.store(in: &bag)
+        // Ekran değişince (monitör takıp çıkarma, çözünürlük) hazır konumu yeni ekrana göre yeniden hesapla
+        NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+            .sink { [weak self] _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self?.applyPreset() }
+            }.store(in: &bag)
         NotificationCenter.default.publisher(for: .resetPosition)
             .sink { [weak self] _ in self?.resetPosition() }.store(in: &bag)
         settings.objectWillChange
@@ -486,6 +502,85 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 next()
             }
         }
+        if CommandLine.arguments.contains("--test-presets") {
+            // 1) Farklı ekran boyutlarında hesap  2) Gerçek ekranda kartın kenar boşlukları
+            // 3) Sözler kapanıp açılınca seçili köşe sabit mi  4) Sürükleyince "Serbest"e geçiyor mu
+            print("— Hesap (kart = pencere − 30 pt gölge payı), 660x460 widget:")
+            let screens: [(String, NSRect)] = [
+                ("13\" MacBook Air (1470x956, menü çubuğu 33)", NSRect(x: 0, y: 0, width: 1470, height: 923)),
+                ("16\" MacBook Pro (1728x1117)", NSRect(x: 0, y: 0, width: 1728, height: 1079)),
+                ("27\" monitör (2560x1440, Dock altta)", NSRect(x: 0, y: 70, width: 2560, height: 1345)),
+            ]
+            for (name, vf) in screens {
+                print(" ", name)
+                for p in [PositionPreset.topRight, .center, .bottomLeft] {
+                    let f = AppDelegate.presetFrame(size: CGSize(width: 660, height: 460), preset: p, visible: vf)
+                    let card = f.insetBy(dx: 30, dy: 30)
+                    print(String(format: "     %@: kart sol=%.0f üst=%.0f | sağa boşluk %.0f, alta boşluk %.0f",
+                                 p.title.padding(toLength: 9, withPad: " ", startingAt: 0),
+                                 card.minX - vf.minX, vf.maxY - card.maxY, vf.maxX - card.maxX, card.minY - vf.minY))
+                }
+            }
+            let synced = LyricsState.synced((0..<300).map { LyricLine(id: $0, time: Double($0), text: "Satır \($0)") })
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
+                lyrics.debugSet(synced)
+                let vf = currentScreenFrame!
+                print("— Gerçek ekran: kullanılabilir alan", vf)
+                var rest = PositionPreset.allCases.filter { $0 != .custom }[...]
+                @MainActor func margins() -> String {
+                    let c = panel.frame.insetBy(dx: 30, dy: 30)
+                    return String(format: "sol %.0f üst %.0f sağ %.0f alt %.0f",
+                                  c.minX - vf.minX, vf.maxY - c.maxY, vf.maxX - c.maxX, c.minY - vf.minY)
+                }
+                @MainActor func anchorPoint(_ p: PositionPreset) -> NSPoint {
+                    let f = panel.frame
+                    return NSPoint(x: p.h < 0 ? f.minX : p.h == 0 ? f.midX : f.maxX,
+                                   y: p.v > 0 ? f.maxY : p.v == 0 ? f.midY : f.minY)
+                }
+                @MainActor func next() {
+                    guard let p = rest.popFirst() else { dragTest(); return }
+                    settings.positionPreset = p
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [self] in MainActor.assumeIsolated {
+                        let before = anchorPoint(p)
+                        let m = margins()
+                        lyrics.debugSet(.notFound)   // sözler kapanır → widget küçülür
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [self] in MainActor.assumeIsolated {
+                            let closed = anchorPoint(p)
+                            lyrics.debugSet(synced)  // sözler açılır → widget büyür
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [self] in MainActor.assumeIsolated {
+                                let reopened = anchorPoint(p)
+                                let ok = abs(before.x - closed.x) < 1 && abs(before.y - closed.y) < 1
+                                    && abs(before.x - reopened.x) < 1 && abs(before.y - reopened.y) < 1
+                                print(ok ? "✓" : "✗", p.title.padding(toLength: 9, withPad: " ", startingAt: 0),
+                                      m, "| sabit köşe kapanınca/açılınca:", ok ? "yerinde" : "KAYDI \(before) → \(closed) → \(reopened)")
+                                next()
+                            } }
+                        } }
+                    } }
+                }
+                @MainActor func dragTest() {
+                    settings.positionPreset = .bottomRight
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [self] in MainActor.assumeIsolated {
+                        @MainActor func send(_ type: NSEvent.EventType, _ p: NSPoint) {
+                            panel.sendEvent(NSEvent.mouseEvent(with: type, location: p, modifierFlags: [], timestamp: 0,
+                                                               windowNumber: panel.windowNumber, context: nil,
+                                                               eventNumber: 0, clickCount: 1, pressure: 1)!)
+                        }
+                        let c = NSPoint(x: 120, y: panel.frame.height - 120)
+                        send(.leftMouseDown, c)
+                        let sc = panel.convertPoint(toScreen: c)
+                        send(.leftMouseDragged, panel.convertPoint(fromScreen: NSPoint(x: sc.x - 60, y: sc.y + 20)))
+                        send(.leftMouseUp, panel.convertPoint(fromScreen: NSPoint(x: sc.x - 60, y: sc.y + 20)))
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [self] in MainActor.assumeIsolated {
+                            print(settings.positionPreset == .custom ? "✓" : "✗",
+                                  "sağ alttayken sürükleyince konum:", settings.positionPreset.title)
+                            exit(0)
+                        } }
+                    } }
+                }
+                next()
+            }
+        }
         if CommandLine.arguments.contains("--test-jitter") {
             // Söz paneli açılıp kapanırken kartın sol üst köşesi ekranda kımıldıyor mu? Her 0.08 sn ölç.
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
@@ -703,6 +798,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ? NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
             : .floating
         updateVisibility()
+        if settings.positionPreset != appliedPreset { applyPreset() }
     }
 
     /// Widget görünür mü: kullanıcı göster dediyse ve (Spotify açıksa ya da kapalıyken de göster seçiliyse).
@@ -743,6 +839,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !anchoringTop else { return }
         UserDefaults.standard.set(panel.frame.minX, forKey: "posX")
         UserDefaults.standard.set(panel.frame.maxY, forKey: "posTop")
+        // Kullanıcı sürükleyerek taşıdı: hazır konumdan serbeste geç
+        if settings.positionPreset != .custom {
+            settings.positionPreset = .custom
+            appliedPreset = .custom
+        }
+    }
+
+    // MARK: - Hazır konumlar
+
+    /// Kartın ekranın kullanılabilir alanının kenarlarına uzaklığı (pencere kenarına değil).
+    static let screenMargin: CGFloat = 20
+    private var appliedPreset: PositionPreset = .custom
+
+    /// Hazır konum için pencere çerçevesi. Ekranın kullanılabilir alanına (menü çubuğu ve Dock hariç) göre
+    /// hesaplanır; pencerenin kartın çevresindeki şeffaf boşluğu (gölge payı) düşülür.
+    static func presetFrame(size: CGSize, preset: PositionPreset, visible vf: NSRect) -> NSRect {
+        let inset = screenMargin - WidgetPanel.outerPadding
+        let x: CGFloat = switch preset.h {
+        case -1: vf.minX + inset
+        case 0: vf.midX - size.width / 2
+        default: vf.maxX - inset - size.width
+        }
+        let y: CGFloat = switch preset.v {
+        case 1: vf.maxY - inset - size.height
+        case 0: vf.midY - size.height / 2
+        default: vf.minY + inset
+        }
+        return NSRect(x: x.rounded(), y: y.rounded(), width: size.width, height: size.height)
+    }
+
+    /// Widget'ın bulunduğu ekran (yoksa ana ekran).
+    private var currentScreenFrame: NSRect? { (panel.screen ?? NSScreen.main)?.visibleFrame }
+
+    private func applyPreset() {
+        appliedPreset = settings.positionPreset
+        guard settings.positionPreset != .custom, let vf = currentScreenFrame else { return }
+        anchoringTop = true
+        panel.setFrame(Self.presetFrame(size: panel.frame.size, preset: settings.positionPreset, visible: vf), display: true)
+        anchoringTop = false
     }
 
     /// İçerik boyutu değişince (söz aç/kapa, görünüm değişimi) pencereyi boyutlandır; sol üst köşe sabit kalsın.
@@ -781,6 +916,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func applyFrame(_ size: CGSize) {
         guard panel.frame.size != size else { return }
+        // Hazır konumda o konumun köşesi sabit kalır (sağ altta sözler açılınca sola-yukarı büyür)
+        if settings.positionPreset != .custom, let vf = currentScreenFrame {
+            anchoringTop = true
+            panel.setFrame(Self.presetFrame(size: size, preset: settings.positionPreset, visible: vf), display: false)
+            anchoringTop = false
+            return
+        }
         let top = panel.frame.maxY
         anchoringTop = true
         // display: false — zorla çizdirme: yoksa ilk kare animasyon başlamadan son haliyle çiziliyor,
@@ -794,10 +936,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let d = UserDefaults.standard
         if let x = d.object(forKey: "posX") as? Double, let top = d.object(forKey: "posTop") as? Double,
            NSScreen.screens.contains(where: { $0.frame.contains(NSPoint(x: x + 50, y: top - 50)) }) {
+            // Açılışta konumu geri yüklemek "kullanıcı taşıdı" sayılmasın (hazır konum serbeste dönmesin)
+            anchoringTop = true
             panel.setFrameTopLeftPoint(NSPoint(x: x, y: top))
-        } else {
-            resetPosition()
+            anchoringTop = false
+        } else if let screen = NSScreen.main?.visibleFrame {
+            anchoringTop = true
+            panel.setFrameTopLeftPoint(NSPoint(x: screen.minX + 40, y: screen.maxY - 40))
+            anchoringTop = false
         }
+        applyPreset()
     }
 
     private func resetPosition() {

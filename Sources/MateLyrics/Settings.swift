@@ -64,6 +64,38 @@ enum LockScreenSide: String, CaseIterable, Identifiable {
     var title: String { self == .right ? "Sağda" : "Solda" }
 }
 
+/// Widget'ın hazır konumu. Koordinat değil, ekranın kullanılabilir alanına (menü çubuğu ve Dock hariç)
+/// göre hesaplanır; her ekran boyutunda aynı yere düşer. Widget büyüyüp küçülse de seçilen köşe sabit kalır.
+enum PositionPreset: String, CaseIterable, Identifiable {
+    case custom, topLeft, top, topRight, left, center, right, bottomLeft, bottom, bottomRight
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .custom: "Serbest (sürükleyerek)"
+        case .topLeft: "Sol üst"
+        case .top: "Üst orta"
+        case .topRight: "Sağ üst"
+        case .left: "Sol orta"
+        case .center: "Tam orta"
+        case .right: "Sağ orta"
+        case .bottomLeft: "Sol alt"
+        case .bottom: "Alt orta"
+        case .bottomRight: "Sağ alt"
+        }
+    }
+
+    /// Yatay: -1 sol, 0 orta, 1 sağ. Dikey: 1 üst, 0 orta, -1 alt.
+    var h: Int { [.topLeft, .left, .bottomLeft, .custom].contains(self) ? -1 : [.top, .center, .bottom].contains(self) ? 0 : 1 }
+    var v: Int { [.topLeft, .top, .topRight, .custom].contains(self) ? 1 : [.left, .center, .right].contains(self) ? 0 : -1 }
+
+    /// Pencere içeriğin büyüklüğünü ayarlarken içerik sabit köşeye yaslansın (yoksa kayar).
+    var alignment: Alignment {
+        Alignment(horizontal: h < 0 ? .leading : h == 0 ? .center : .trailing,
+                  vertical: v > 0 ? .top : v == 0 ? .center : .bottom)
+    }
+}
+
 /// Kullanıcı ayarları (UserDefaults'a kaydedilir).
 @MainActor
 final class Settings: ObservableObject {
@@ -79,6 +111,7 @@ final class Settings: ObservableObject {
     @AppStorage("showWhenSpotifyClosed") var showWhenSpotifyClosed = true
     /// Kilitliyken widget taşınamaz ve köşeden boyutlandırılamaz.
     @AppStorage("lockPosition") var lockPosition = false
+    @AppStorage("positionPreset") var positionPreset: PositionPreset = .custom
     /// Ekran kilitliyken kilit ekranında şarkı + sözler kartı göster.
     @AppStorage("lockScreenEnabled") var lockScreenEnabled = true
     /// Kartın kilit ekranındaki dikey konumu (ekran yüksekliğinin oranı, alttan).

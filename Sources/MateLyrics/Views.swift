@@ -403,6 +403,12 @@ struct ContextMenuItems: View {
             Text("İpucu: sağ alt köşeden sürükleyerek de ayarlanır")
         }
         Toggle("Şarkı sözleri", isOn: $settings.showLyrics)
+        Picker("Konum", selection: $settings.positionPreset) {
+            ForEach(PositionPreset.allCases) { preset in
+                Text(preset.title).tag(preset)
+                if preset == .custom { Divider() }
+            }
+        }
         Toggle("Konumu kilitle", isOn: $settings.lockPosition)
         Menu("Söz zamanlaması (bu şarkı)") {
             let id = spotify.track?.id
