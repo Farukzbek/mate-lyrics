@@ -21,6 +21,7 @@
 - **Tek tuşla sözleri aç/kapa**, oynat/durdur, ileri/geri, ilerleme çubuğundan atlama
 - Sözü olmayan şarkılarda söz paneli **otomatik kapanır**, sözler gelince açılır (elle kapattıysan açılmaz)
 - **Köşeden sürükleyerek boyutlandırma**, istediğin yere taşıma (konum hatırlanır), **konum kilidi**
+- **Hazır konumlar:** sol/orta/sağ × üst/orta/alt; ekranın boyutuna göre hesaplanır (her ekranda aynı yere düşer), widget yeni konuma kayarak geçer
 - Sözleri **iki parmakla kaydırma** (3 sn sonra çalan satıra döner)
 - Kapağa / plağa tıklayınca **Spotify öne gelir** (sayfa değiştirmeden)
 - Masaüstüne sabitleme (pencerelerin arkasında) veya her zaman üstte
