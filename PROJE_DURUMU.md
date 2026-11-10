@@ -77,6 +77,8 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
   Seçili köşe sabit: applyFrame boyut değişince presetFrame ile yeniden konumlar; WidgetRoot içerik hizası
   preset.alignment (yoksa büyüme/küçülme gecikmesinde kayar). Ekran değişince yeniden hesaplanır.
   Kullanıcı sürükleyince custom'a döner (savePosition). Test: `--test-presets`.
+  Menüden konum değişince 0.5 sn kayarak gider (applyPreset(animated:), 120 Hz Timer, ease-in-out; hedef her
+  adımda güncel boyuttan hesaplanır, applyFrame kayma sırasında slideOrigin kullanır). Test: `--test-slide`.
 - Şarkı başında üst boşluk yok: offset üstten %10'a sınırlı, aktif satır %35'e gelince kaymaya başlar.
 - Spotify'ın kendi söz API'si yok/kapalı; sözler LRCLIB'den.
 

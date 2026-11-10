@@ -502,6 +502,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 next()
             }
         }
+        if CommandLine.arguments.contains("--test-slide") {
+            // Menüden konum değişimi: pencere atlamadan kayıyor mu, doğru yere varıyor mu,
+            // kayarken widget büyürse (sözler açılırsa) yine doğru yere varıyor mu?
+            let synced = LyricsState.synced((0..<300).map { LyricLine(id: $0, time: Double($0), text: "Satır \($0)") })
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
+                lyrics.debugSet(synced)
+                settings.positionPreset = .topLeft
+                @MainActor func run(_ name: String, to preset: PositionPreset, midway: (@MainActor () -> Void)? = nil,
+                                    then: @escaping @MainActor () -> Void) {
+                    print("==", name)
+                    let start = Date()
+                    var samples: [NSPoint] = []
+                    settings.positionPreset = preset
+                    var fired = false
+                    let timer = Timer(timeInterval: 0.04, repeats: true) { [self] t in
+                        MainActor.assumeIsolated {
+                            let el = Date().timeIntervalSince(start)
+                            samples.append(panel.frame.origin)
+                            if el > 0.15, !fired { fired = true; midway?() }
+                            if el > 1.3 {
+                                t.invalidate()
+                                let line = samples.enumerated().filter { $0.offset % 2 == 0 }
+                                    .map { String(format: "(%.0f,%.0f)", $0.element.x, $0.element.y) }
+                                print("  konumlar:", line.prefix(11).joined(separator: " "))
+                                let maxStep = zip(samples, samples.dropFirst()).map { hypot($1.x - $0.x, $1.y - $0.y) }.max() ?? 0
+                                let moving = Set(samples.map { "\(Int($0.x)),\(Int($0.y))" }).count
+                                let expected = AppDelegate.presetFrame(size: panel.frame.size, preset: preset, visible: currentScreenFrame!)
+                                let arrived = abs(panel.frame.minX - expected.minX) < 1 && abs(panel.frame.minY - expected.minY) < 1
+                                print(String(format: "  %@ ara konum sayısı %d, en büyük adım %.0f pt | %@ hedefe vardı | %@ konum ayarı: %@",
+                                             moving > 6 ? "✓" : "✗", moving, maxStep, arrived ? "✓" : "✗",
+                                             settings.positionPreset == preset ? "✓" : "✗", settings.positionPreset.title))
+                                then()
+                            }
+                        }
+                    }
+                    RunLoop.main.add(timer, forMode: .common)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { MainActor.assumeIsolated {
+                    run("sol üst → sağ alt", to: .bottomRight) {
+                        run("sağ alt → tam orta", to: .center) { [self] in
+                            lyrics.debugSet(.notFound) // widget küçülsün
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { MainActor.assumeIsolated {
+                                run("tam orta → sağ üst, kayarken sözler açılıyor (widget büyüyor)", to: .topRight,
+                                    midway: { [self] in lyrics.debugSet(synced) }) { exit(0) }
+                            } }
+                        }
+                    }
+                } }
+            }
+        }
         if CommandLine.arguments.contains("--test-presets") {
             // 1) Farklı ekran boyutlarında hesap  2) Gerçek ekranda kartın kenar boşlukları
             // 3) Sözler kapanıp açılınca seçili köşe sabit mi  4) Sürükleyince "Serbest"e geçiyor mu
@@ -798,7 +848,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ? NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
             : .floating
         updateVisibility()
-        if settings.positionPreset != appliedPreset { applyPreset() }
+        if settings.positionPreset != appliedPreset { applyPreset(animated: true) }
     }
 
     /// Widget görünür mü: kullanıcı göster dediyse ve (Spotify açıksa ya da kapalıyken de göster seçiliyse).
@@ -841,6 +891,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.set(panel.frame.maxY, forKey: "posTop")
         // Kullanıcı sürükleyerek taşıdı: hazır konumdan serbeste geç
         if settings.positionPreset != .custom {
+            stopSlide() // kayarken elle tutulup taşındıysa kaymayı bırak
             settings.positionPreset = .custom
             appliedPreset = .custom
         }
@@ -872,12 +923,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Widget'ın bulunduğu ekran (yoksa ana ekran).
     private var currentScreenFrame: NSRect? { (panel.screen ?? NSScreen.main)?.visibleFrame }
 
-    private func applyPreset() {
+    /// Menüden konum değişince widget yeni yerine kayarak gider.
+    private struct Slide { let from: NSPoint; let start: Date }
+    private static let slideDuration: TimeInterval = 0.5
+    private var slide: Slide?
+    private var slideTimer: Timer?
+
+    private func stopSlide() {
+        slideTimer?.invalidate()
+        slideTimer = nil
+        slide = nil
+    }
+
+    /// Kayma sırasında verilen boyut için o anki pencere konumu. Hedef her seferinde güncel boyuttan
+    /// hesaplanır; böylece kayarken widget büyüyüp küçülse de doğru yere varır.
+    private func slideOrigin(for size: CGSize, slide: Slide, visible vf: NSRect) -> (origin: NSPoint, done: Bool) {
+        let target = Self.presetFrame(size: size, preset: settings.positionPreset, visible: vf).origin
+        let t = min(1, Date().timeIntervalSince(slide.start) / Self.slideDuration)
+        let e = t < 0.5 ? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2 // yumuşak hızlan-yavaşla
+        return (NSPoint(x: slide.from.x + (target.x - slide.from.x) * e,
+                        y: slide.from.y + (target.y - slide.from.y) * e), t >= 1)
+    }
+
+    private func applyPreset(animated: Bool = false) {
         appliedPreset = settings.positionPreset
+        stopSlide()
         guard settings.positionPreset != .custom, let vf = currentScreenFrame else { return }
-        anchoringTop = true
-        panel.setFrame(Self.presetFrame(size: panel.frame.size, preset: settings.positionPreset, visible: vf), display: true)
-        anchoringTop = false
+        let target = Self.presetFrame(size: panel.frame.size, preset: settings.positionPreset, visible: vf)
+        let distance = hypot(target.minX - panel.frame.minX, target.minY - panel.frame.minY)
+        guard animated, panel.isVisible, distance > 2 else {
+            anchoringTop = true
+            panel.setFrame(target, display: true)
+            anchoringTop = false
+            return
+        }
+        slide = Slide(from: panel.frame.origin, start: Date())
+        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let slide = self.slide, let vf = self.currentScreenFrame else { return }
+                let (origin, done) = self.slideOrigin(for: self.panel.frame.size, slide: slide, visible: vf)
+                self.anchoringTop = true
+                self.panel.setFrameOrigin(origin)
+                self.anchoringTop = false
+                if done { self.stopSlide() }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        slideTimer = timer
     }
 
     /// İçerik boyutu değişince (söz aç/kapa, görünüm değişimi) pencereyi boyutlandır; sol üst köşe sabit kalsın.
@@ -918,8 +1010,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard panel.frame.size != size else { return }
         // Hazır konumda o konumun köşesi sabit kalır (sağ altta sözler açılınca sola-yukarı büyür)
         if settings.positionPreset != .custom, let vf = currentScreenFrame {
+            // Kayma sürüyorsa hedefe atlamadan, kaymanın o anki noktasında boyutlan
+            let origin = slide.map { slideOrigin(for: size, slide: $0, visible: vf).origin }
+                ?? Self.presetFrame(size: size, preset: settings.positionPreset, visible: vf).origin
             anchoringTop = true
-            panel.setFrame(Self.presetFrame(size: size, preset: settings.positionPreset, visible: vf), display: false)
+            panel.setFrame(NSRect(origin: origin, size: size), display: false)
             anchoringTop = false
             return
         }
