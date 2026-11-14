@@ -10,6 +10,11 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Farukzbek/mate-lyrics/releases/latest/download/Mate-Lyrics.dmg"><b>⬇️ macOS için indir (Mate-Lyrics.dmg)</b></a><br>
+  <sub>macOS 14 veya üstü · Spotify masaüstü uygulaması gerekir · <a href="#kurulum">kurulum adımları</a></sub>
+</p>
+
+<p align="center">
   <img src="docs/screenshots/vinyl-dark.png" width="640" alt="Plak görünümü">
 </p>
 
@@ -37,7 +42,9 @@
 
 ## Kurulum
 
-1. [Releases](../../releases) sayfasından `Mate-Lyrics.dmg` dosyasını indir ve çift tıkla. Açılan pencerede **Mate Lyrics**'i **Applications** klasörünün üzerine sürükle.
+> ⚠️ Yeşil **Code › Download ZIP** düğmesi uygulamayı değil, programın **kaynak kodunu** indirir. Uygulama için yukarıdaki indirme bağlantısını ya da [Releases](../../releases) sayfasındaki `Mate-Lyrics.dmg` dosyasını kullan.
+
+1. [`Mate-Lyrics.dmg`](https://github.com/Farukzbek/mate-lyrics/releases/latest/download/Mate-Lyrics.dmg) dosyasını indir ve çift tıkla. Açılan pencerede **Mate Lyrics**'i **Applications** klasörünün üzerine sürükle.
 2. Uygulamalar klasöründen Mate Lyrics'i aç. Uygulama Apple onayından geçmediği için ilk açılışta macOS uyarı verir:
    **Sistem Ayarları › Gizlilik ve Güvenlik › en altta "Yine de Aç"**. Ya da Terminal'de:
    ```bash
