@@ -4,9 +4,11 @@ MATE LYRICS — Kurulum
 Spotify'da çalan şarkıyı masaüstünde gösteren widget. Plak / Kapak / Kompakt
 görünümleri ve senkron şarkı sözleri var.
 
-1) Zip'i aç, "Mate Lyrics" uygulamasını Uygulamalar (Applications) klasörüne sürükle.
+1) Mate-Lyrics.dmg dosyasına çift tıkla. Açılan pencerede "Mate Lyrics"i
+   Applications (Uygulamalar) klasörünün üzerine sürükle.
+   (Zip indirdiysen: zip'i aç, uygulamayı Uygulamalar klasörüne sürükle.)
 
-2) Çift tıkla. İlk açılışta macOS "geliştiricisi doğrulanamadı" der
+2) Uygulamalar klasöründen Mate Lyrics'i aç. İlk açılışta macOS "geliştiricisi doğrulanamadı" der
    (uygulama App Store'dan değil, o yüzden). Çözüm:
      Sistem Ayarları › Gizlilik ve Güvenlik › en altta
      "Mate Lyrics engellendi" yanında "Yine de Aç" butonuna bas.

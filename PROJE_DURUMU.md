@@ -9,6 +9,16 @@ Spotify'da çalan şarkıyı masaüstünde gösteren SwiftUI widget (macOS 14+).
 - `Views.swift` / `VinylAndLyrics.swift` — Plak, Kapak, Kompakt görünüm; söz paneli (ScrollView yok, offset ile kaydırma)
 - `App.swift` — MenuBarExtra + kenarlıksız NSPanel (masaüstü seviyesi / üstte), konum kaydı
 
+## Dağıtım (DMG)
+build-app.sh DMG üretir: dmgbuild (ilk çalıştırmada .build/dmgvenv'e pip ile kurulur; Finder/AppleScript gerekmez),
+arka plan tools/make-dmg-background.swift, düzen tools/dmg-settings.py.
+İmza: anahtar zincirinde "Developer ID Application" varsa onunla (hardened runtime + Resources/MateLyrics.entitlements),
+yoksa ad-hoc. Apple onayı (notarization): notarytool keychain profili "mate-lyrics-notary" varsa otomatik gönderilir
+ve staple edilir; yoksa DMG arka planında "Yine de Aç" ipucu çıkar. Kullanıcının ücretli Apple Developer hesabı var
+(Apple Distribution sertifikası mevcut) ama Developer ID sertifikası ve notary profili HENÜZ YOK → sürümler onaysız.
+Developer ID + hardened runtime yolu hiç denenmedi (AppleScript/SkyLight o yolda test edilmeli).
+App Store'a yükleme yok (kullanıcı istemiyor; zaten özel API yüzünden olmaz).
+
 ## Build
 `./build-app.sh` → `dist/Mate Lyrics.app` + `dist/Mate-Lyrics.zip` (universal, ad-hoc imzalı)
 Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünümü PNG kaydeder.

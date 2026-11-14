@@ -37,9 +37,9 @@
 
 ## Kurulum
 
-1. [Releases](../../releases) sayfasından `Mate-Lyrics.zip` dosyasını indir, aç ve **Mate Lyrics**'i Uygulamalar klasörüne sürükle.
-2. Uygulama Apple tarafından imzalanmadığı için ilk açılışta macOS uyarı verir:
-   **Sistem Ayarları › Gizlilik ve Güvenlik › "Yine de Aç"**. Ya da Terminal'de:
+1. [Releases](../../releases) sayfasından `Mate-Lyrics.dmg` dosyasını indir ve çift tıkla. Açılan pencerede **Mate Lyrics**'i **Applications** klasörünün üzerine sürükle.
+2. Uygulamalar klasöründen Mate Lyrics'i aç. Uygulama Apple onayından geçmediği için ilk açılışta macOS uyarı verir:
+   **Sistem Ayarları › Gizlilik ve Güvenlik › en altta "Yine de Aç"**. Ya da Terminal'de:
    ```bash
    xattr -dr com.apple.quarantine "/Applications/Mate Lyrics.app"
    ```
@@ -58,7 +58,7 @@
 ```bash
 git clone https://github.com/Farukzbek/mate-lyrics.git
 cd mate-lyrics
-./build-app.sh        # dist/Mate Lyrics.app + dist/Mate-Lyrics.zip
+./build-app.sh        # dist/Mate Lyrics.app + dist/Mate-Lyrics.dmg
 ```
 
 Xcode komut satırı araçları yeterli (Swift 5.9+). Geliştirme için:
@@ -85,7 +85,7 @@ Mate Lyrics shows the track currently playing in Spotify as a desktop widget on 
 - Three styles (vinyl, cover, compact), four backgrounds, resize from the corner, pin to desktop
 - Synced lyrics from [LRCLIB](https://lrclib.net); click a line to seek; per-song timing offset
 - Lyrics on the lock screen as a subtitle under macOS's own Now Playing (uses the private SkyLight API; may break with macOS updates, can be turned off)
-- Download from [Releases](../../releases), move to Applications, then allow it in **System Settings › Privacy & Security** (the app is not notarized) and allow Spotify automation when asked
+- Download `Mate-Lyrics.dmg` from [Releases](../../releases), drag the app to Applications, then allow it in **System Settings › Privacy & Security** (the app is not notarized) and allow Spotify automation when asked
 - Requires macOS 14+ and the Spotify desktop app. Build with `./build-app.sh`
 
 ## Yasal not / Disclaimer
