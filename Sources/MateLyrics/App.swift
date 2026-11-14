@@ -44,6 +44,7 @@ struct MenuContent: View {
         Toggle("Girişte otomatik başlat", isOn: Binding(get: { settings.launchAtLogin },
                                                         set: { settings.launchAtLogin = $0 }))
         Divider()
+        Button("Mate Lyrics penceresi…") { NotificationCenter.default.post(name: .showWelcome, object: nil) }
         Button("Konumu sıfırla") { NotificationCenter.default.post(name: .resetPosition, object: nil) }
         Button("Çıkış") { NSApp.terminate(nil) }.keyboardShortcut("q")
     }
@@ -53,6 +54,7 @@ struct MenuContent: View {
 extension Notification.Name {
     static let resetPosition = Notification.Name("mate.resetPosition")
     static let lockScreenPreview = Notification.Name("mate.lockScreenPreview")
+    static let showWelcome = Notification.Name("mate.showWelcome")
 }
 
 /// Pencere içeriğin boyutundan farklıyken (büyüme öncesi / küçülme gecikmesi) içerik sabit köşeye yaslanır:
@@ -162,6 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var panel: WidgetPanel!
     private var lockScreen: LockScreenController!
+    private let welcome = WelcomeWindowController()
     private var bag = Set<AnyCancellable>()
     private var anchoringTop = false
 
@@ -233,6 +236,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in self?.updateVisibility() }.store(in: &bag)
 
         applySettings()
+
+        NotificationCenter.default.publisher(for: .showWelcome)
+            .sink { [weak self] _ in self?.showWelcome(firstRun: false) }.store(in: &bag)
+        // İlk açılışta karşılama penceresi (test bayraklarıyla çalışırken değil)
+        if CommandLine.arguments.count == 1, !UserDefaults.standard.bool(forKey: "hasSeenWelcome") {
+            UserDefaults.standard.set(true, forKey: "hasSeenWelcome")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.showWelcome(firstRun: true) }
+        }
+        #if DEBUG
+        if let k = CommandLine.arguments.firstIndex(of: "--test-welcome"), k + 1 < CommandLine.arguments.count {
+            let url = URL(fileURLWithPath: CommandLine.arguments[k + 1])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [self] in
+                showWelcome(firstRun: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in MainActor.assumeIsolated {
+                    // Pencerenin ekrandaki gerçek hali (pencere sunucusundan)
+                    typealias Capture = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
+                    let capture = unsafeBitCast(dlsym(dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", RTLD_NOW),
+                                                      "CGWindowListCreateImage")!, to: Capture.self)
+                    if let w = welcome.window, let img = capture(.null, 8, UInt32(w.windowNumber), 1 | 8)?.takeRetainedValue() {
+                        try? NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:])?.write(to: url)
+                        print("pencere:", w.frame.size, "görünür:", w.isVisible)
+                    }
+                    exit(0)
+                } }
+            }
+        }
+        #endif
 
         if let i = CommandLine.arguments.firstIndex(of: "--test-control"), i + 1 < CommandLine.arguments.count {
             let cmd = CommandLine.arguments[i + 1]
@@ -841,6 +871,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         RunLoop.current.run(until: Date().addingTimeInterval(0.5))
         report("küçültme sonrası")
         exit(0)
+    }
+
+    /// Uygulama zaten çalışırken simgesine tıklanınca (Launchpad, Finder, Spotlight) pencereyi göster.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showWelcome(firstRun: false)
+        return false
+    }
+
+    private func showWelcome(firstRun: Bool) {
+        welcome.show(settings: settings, spotify: spotify, firstRun: firstRun) { [weak self] in
+            self?.bringWidgetToFrontBriefly()
+        }
+    }
+
+    /// Masaüstüne sabitli widget pencerelerin arkasında kalabilir; 4 sn öne getir, sonra eski katmanına dön.
+    private func bringWidgetToFrontBriefly() {
+        guard shouldShowWidget else { return }
+        panel.level = .floating
+        panel.orderFrontRegardless()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in self?.applySettings() }
     }
 
     private func applySettings() {

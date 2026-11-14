@@ -9,6 +9,14 @@ Spotify'da çalan şarkıyı masaüstünde gösteren SwiftUI widget (macOS 14+).
 - `Views.swift` / `VinylAndLyrics.swift` — Plak, Kapak, Kompakt görünüm; söz paneli (ScrollView yok, offset ile kaydırma)
 - `App.swift` — MenuBarExtra + kenarlıksız NSPanel (masaüstü seviyesi / üstte), konum kaydı
 
+## Karşılama penceresi (Welcome.swift)
+Kurulum testinde (2026-11-14) kullanıcı uygulamaya tıklayıp pencere bekledi; LSUIElement olduğu için hiçbir şey
+görünmüyordu. Artık: ilk açılışta (UserDefaults hasSeenWelcome) ve uygulama çalışırken simgesine tıklanınca
+(applicationShouldHandleReopen) + menü › "Mate Lyrics penceresi…" → durum (Spotify açık/izin/çalan), hızlı ayarlar,
+"Widget'ı öne getir" (4 sn .floating). Test bayraklarıyla çalışırken açılmaz. Test: `--test-welcome <png>`.
+Aynı testte Gatekeeper duvarı doğrulandı: onaysız sürümde kullanıcı tek başına kuramadı ("Açılmadı" uyarısı,
+vurgulu düğme "Çöp Sepeti'ne Taşı"); Ayarlar › Gizlilik ve Güvenlik › Yine de Aç ile kuruldu. Notarization önerildi.
+
 ## Dağıtım (DMG)
 build-app.sh DMG üretir: dmgbuild (ilk çalıştırmada .build/dmgvenv'e pip ile kurulur; Finder/AppleScript gerekmez),
 arka plan tools/make-dmg-background.swift, düzen tools/dmg-settings.py.

@@ -3,3 +3,4 @@ dist/
 .swiftpm/
 Resources/AppIcon.iconset/
 .DS_Store
+.ayar-yedegi.plist
