@@ -45,6 +45,8 @@
    ```
 3. "Mate Lyrics, Spotify'ı denetlemek istiyor" sorusuna **İzin Ver** de.
 
+İlk açılışta bir karşılama penceresi çıkar. Uygulama menü çubuğunda (♫) çalışır ve widget masaüstünde durur; uygulama simgesine tekrar tıklarsan bu pencere yeniden açılır.
+
 **Gereksinimler:** macOS 14 (Sonoma) veya üstü, Spotify masaüstü uygulaması. Apple Silicon ve Intel.
 
 ## Kullanım
