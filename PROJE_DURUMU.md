@@ -103,3 +103,11 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
 ## Durum (2026-10-09)
 v1 + kullanıcı istekleri: widget üstünde söz aç/kapa butonu, yumuşak söz geçişi, plak 60°/sn,
 köşeden boyutlandırma (scale 0.6–1.8), "Şeffaf (ayrı kutular)" arka planı. /Applications'a kuruldu, kullanıcı testi bekleniyor.
+
+## Yapılacaklar
+- **Karışık çalma (shuffle) ve tekrar (repeat) düğmeleri** (kullanıcı notu, 2026-11-15). Spotify AppleScript sözlüğünde
+  `shuffling` / `repeating` var; okunur ve yazılır. Planlanan: Controls'a iki küçük düğme (açıkken yeşil nokta, söz
+  düğmesindeki gibi), durum SpotifyClient.readScript'ine eklenir (poll + PlaybackStateChanged), tıklayınca beklenen
+  durum 1.5 sn korunur (expectedPlaying gibi). Kompakt görünümde yer var mı bakılacak; kilit ekranı kartında da olabilir.
+  Not: AppleScript'te `repeating` sadece açık/kapalı; "tek şarkıyı tekrarla" modu yok (doğrulanacak).
+- Apple onayı (notarization): Developer ID sertifikası + notarytool profili "mate-lyrics-notary" (bkz. Dağıtım).
