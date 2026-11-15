@@ -336,6 +336,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--test-sizes") {
             // Her görünüm × arka plan için widget boyutu: arka plan değişince boyut değişmemeli
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
+                if CommandLine.arguments.contains("--with-lyrics") {
+                    lyrics.debugSet(.synced((0..<300).map { LyricLine(id: $0, time: Double($0), text: "Satır \($0)") }))
+                } else { lyrics.debugSet(.notFound) }
+                print(CommandLine.arguments.contains("--with-lyrics") ? "(sözler açık)" : "(sözler kapalı)")
                 let combos = WidgetStyle.allCases.flatMap { st in BackgroundStyle.allCases.map { (st, $0) } }
                 var rest = combos[...]
                 @MainActor func next() {
@@ -696,6 +700,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         exit(0)
                     } }
                 } }
+            }
+        }
+        if CommandLine.arguments.contains("--test-center") {
+            // Oynat düğmesi kartın yatay ortasında mı? Görüntüden ölçer (nokta cinsinden, + = sağa kaymış).
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
+                spotify.debugSetTrack(Track(id: "test:C", name: "Örnek Şarkı", artist: "Sanatçı", album: "Albüm",
+                                            duration: 200, artworkURL: nil))
+                settings.background = .dark
+                settings.showLyrics = false
+                settings.scale = 1
+                var rest: [(WidgetStyle, Bool)] = [(.vinyl, false), (.cover, false), (.vinyl, true), (.compact, false)]
+                @MainActor func next() {
+                    guard !rest.isEmpty else { exit(0) }
+                    let (style, lyricsOn) = rest.removeFirst()
+                    settings.style = style
+                    settings.showLyrics = lyricsOn
+                    lyrics.debugSet(lyricsOn ? .synced([LyricLine(id: 0, time: 0, text: "Örnek")]) : .notFound)
+                    let view = WidgetView(spotify: spotify, lyrics: lyrics, artwork: artwork, settings: settings).fixedSize()
+                    let host = NSHostingView(rootView: view)
+                    host.frame.size = host.fittingSize
+                    let win = NSWindow(contentRect: host.frame, styleMask: .borderless, backing: .buffered, defer: false)
+                    win.contentView = host; win.backgroundColor = .clear; win.isOpaque = false; win.orderBack(nil)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { MainActor.assumeIsolated {
+                        host.layoutSubtreeIfNeeded()
+                        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { exit(1) }
+                        host.cacheDisplay(in: host.bounds, to: rep)
+                        let w = rep.pixelsWide, h = rep.pixelsHigh
+                        let scale = CGFloat(w) / host.bounds.width
+                        var minX = w, maxX = 0, minY = h, maxY = 0
+                        for y in stride(from: 0, to: h, by: 3) {
+                            for x in stride(from: 0, to: w, by: 3) where (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.9 {
+                                minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+                            }
+                        }
+                        // Oynat düğmesi: kartın alt kısmındaki en geniş parlak şerit
+                        let rowStart = minY + Int(Double(maxY - minY) * 0.62)
+                        var runs: [(Int, Int)] = []
+                        var runStart: Int?
+                        for x in stride(from: minX, through: maxX, by: 2) {
+                            var bright = 0
+                            for y in stride(from: rowStart, through: maxY, by: 2) {
+                                if let c = rep.colorAt(x: x, y: y), c.alphaComponent > 0.9, c.brightnessComponent > 0.78 { bright += 1 }
+                            }
+                            let on = CGFloat(bright * 2) > 11 * scale
+                            if on, runStart == nil { runStart = x }
+                            if !on, let rs = runStart { runs.append((rs, x)); runStart = nil }
+                        }
+                        let play = runs.max { $0.1 - $0.0 < $1.1 - $1.0 }
+                        let card = CGFloat(minX + maxX) / 2 / scale
+                        if let play {
+                            let center = CGFloat(play.0 + play.1) / 2 / scale
+                            print(String(format: "%@%@  oynat düğmesi merkezden %+.1f pt (genişlik %.0f pt)",
+                                         "\(style.rawValue)".padding(toLength: 8, withPad: " ", startingAt: 0),
+                                         lyricsOn ? "(sözler açık)" : "(sözler kapalı)", center - card, CGFloat(play.1 - play.0) / scale))
+                        } else { print(style.rawValue, "oynat düğmesi bulunamadı") }
+                        win.orderOut(nil)
+                        next()
+                    } }
+                }
+                next()
             }
         }
         if CommandLine.arguments.contains("--test-jitter") {

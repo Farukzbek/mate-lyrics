@@ -121,7 +121,8 @@ struct WidgetView: View {
                                 .openSpotifyOnTap(spotify)
                         }
                     }
-                    .frame(width: 240 * s)
+                    // Şeffafta sözler kapalıyken tek sütun kalır: kutu iç boşlukları yüzünden 20 pt dar olmasın
+                    .frame(width: (transparent && !lyricsVisible ? 260 : 240) * s)
                     .sectionBox(transparent, s: s, padding: 10)
 
                     VStack(spacing: transparent ? 10 * s : 14 * s) {
@@ -129,7 +130,8 @@ struct WidgetView: View {
                         ProgressRow(spotify: spotify, duration: track.duration, s: s)
                         Controls(spotify: spotify, showLyrics: lyricsToggle, s: s)
                     }
-                    .frame(width: 240 * s)
+                    // Şeffafta sözler kapalıyken tek sütun kalır: kutu iç boşlukları yüzünden 20 pt dar olmasın
+                    .frame(width: (transparent && !lyricsVisible ? 260 : 240) * s)
                     .sectionBox(transparent, s: s, padding: 10)
                 }
                 .padding(transparent ? 0 : 20 * s)
@@ -177,7 +179,8 @@ struct WidgetView: View {
                         .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
                 }
             }
-            .padding(transparent ? 0 : 16 * s)
+            // Şeffafta kutuların kendi iç boşluğu var; sözler kapalıyken (tek kutu) toplam yükseklik diğer arka planlarla aynı kalsın
+            .padding(transparent ? (lyricsVisible ? 0 : 2 * s) : 16 * s)
             .frame(width: 360 * s)
         }
     }
@@ -315,7 +318,12 @@ struct Controls: View {
     var showsModes = true
 
     var body: some View {
-        HStack(spacing: (showsModes ? 16 : 22) * s) {
+        // 7 öğe (görünmez eş dahil) 240 pt'lik sütuna sığmalı; yoksa söz düğmesi kart kenarına ve boyutlandırma tutamağına yapışır
+        HStack(spacing: (showsModes ? (showsLyricsToggle ? 11 : 16) : 22) * s) {
+            if showsModes && showsLyricsToggle {
+                // Sağdaki söz düğmesinin görünmez eşi: yoksa satır sola kayar, oynat düğmesi kartın ortasında durmaz
+                LyricsToggle(isOn: .constant(false), s: s).hidden()
+            }
             if showsModes { ShuffleToggle(spotify: spotify, s: s) }
             ControlButton(symbol: "backward.fill", size: 16 * s) { spotify.previous() }
             ControlButton(symbol: spotify.isPlaying ? "pause.circle.fill" : "play.circle.fill", size: 38 * s) {

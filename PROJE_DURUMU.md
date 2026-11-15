@@ -113,5 +113,11 @@ kartında kontrol satırında, kompakt görünümde ilerleme çubuğunun SOLUNDA
 boyutlandırmaya giderdi; tutamak alanı 36→28 pt'e küçüldü). Test: `--test-modes` (gerçek Spotify; karışık çalmayı
 gerçekten değiştirmez, sadece aynı değeri yazar; tekrar gidiş-dönüşü sadece tekrar kapalıyken dener).
 
+Kontrol satırı simetrik: sağdaki söz düğmesinin soluna görünmez eş (`.hidden()` LyricsToggle) konur, yoksa oynat
+düğmesi kartın ortasından ~17 pt sola kayıyordu (kullanıcı fark etti). 7 öğe 240 pt sütuna sığsın diye aralık 11*s.
+Test: `--test-center` (oynat düğmesinin kart ortasından sapmasını görüntüden ölçer, hedef ≈ 0 pt).
+`--test-sizes [--with-lyrics]`: ARKA PLAN boyutları hem sözler açık hem kapalıyken eşit olmalı (sözler kapalıyken şeffaf
+plak/kapak 20 pt dar, kompakt 4 pt kısaydı → düzeltildi; ölçüm stil değişiminden 0.9 sn sonra, bazen 1 seferlik sapma).
+
 ## Yapılacaklar
 - Apple onayı (notarization): Developer ID sertifikası + notarytool profili "mate-lyrics-notary" (bkz. Dağıtım).
