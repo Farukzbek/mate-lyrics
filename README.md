@@ -23,7 +23,7 @@
 - **3 görünüm:** Plak (dönen plak + iğne), Kapak, Kompakt
 - **Senkron şarkı sözleri:** Spotify tarzı, söylenen satır vurgulanır; satıra tıklayınca oraya atlar
 - **4 arka plan:** kapak rengi, cam, koyu, şeffaf (ayrı kutular)
-- **Tek tuşla sözleri aç/kapa**, oynat/durdur, ileri/geri, ilerleme çubuğundan atlama
+- **Tek tuşla sözleri aç/kapa**, oynat/durdur, ileri/geri, **karışık çalma** ve **tekrar** düğmeleri, ilerleme çubuğundan atlama
 - Sözü olmayan şarkılarda söz paneli **otomatik kapanır**, sözler gelince açılır (elle kapattıysan açılmaz)
 - **Köşeden sürükleyerek boyutlandırma**, istediğin yere taşıma (konum hatırlanır), **konum kilidi**
 - **Hazır konumlar:** sol/orta/sağ × üst/orta/alt; ekranın boyutuna göre hesaplanır (her ekranda aynı yere düşer), widget yeni konuma kayarak geçer

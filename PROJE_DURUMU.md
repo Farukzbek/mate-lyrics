@@ -104,10 +104,14 @@ Görsel test: `.build/debug/MateLyrics --snapshot <klasör>` → her görünüm�
 v1 + kullanıcı istekleri: widget üstünde söz aç/kapa butonu, yumuşak söz geçişi, plak 60°/sn,
 köşeden boyutlandırma (scale 0.6–1.8), "Şeffaf (ayrı kutular)" arka planı. /Applications'a kuruldu, kullanıcı testi bekleniyor.
 
+## Karışık çalma / tekrar (2026-11-15)
+SpotifyClient: readScript'e `shuffling, repeating` eklendi (isShuffling/isRepeating); toggleShuffle/toggleRepeat
+(`set shuffling/repeating to ...`), basınca 1.5 sn eski değer yok sayılır (expectedShuffle/Repeat, resolved()).
+Spotify'ın AppleScript'inde `repeating` sadece açık/kapalı: "tek şarkıyı tekrarla" seçilemez, Spotify o modda
+olsa bile düğme "açık" görünür. UI: ModeToggle (söz düğmesi gibi yeşil nokta); Controls(showsModes) plak/kapak/kilit
+kartında kontrol satırında, kompakt görünümde ilerleme çubuğunun SOLUNDA (sağ alt köşe boyutlandırma tutamağı: tıklama
+boyutlandırmaya giderdi; tutamak alanı 36→28 pt'e küçüldü). Test: `--test-modes` (gerçek Spotify; karışık çalmayı
+gerçekten değiştirmez, sadece aynı değeri yazar; tekrar gidiş-dönüşü sadece tekrar kapalıyken dener).
+
 ## Yapılacaklar
-- **Karışık çalma (shuffle) ve tekrar (repeat) düğmeleri** (kullanıcı notu, 2026-11-15). Spotify AppleScript sözlüğünde
-  `shuffling` / `repeating` var; okunur ve yazılır. Planlanan: Controls'a iki küçük düğme (açıkken yeşil nokta, söz
-  düğmesindeki gibi), durum SpotifyClient.readScript'ine eklenir (poll + PlaybackStateChanged), tıklayınca beklenen
-  durum 1.5 sn korunur (expectedPlaying gibi). Kompakt görünümde yer var mı bakılacak; kilit ekranı kartında da olabilir.
-  Not: AppleScript'te `repeating` sadece açık/kapalı; "tek şarkıyı tekrarla" modu yok (doğrulanacak).
 - Apple onayı (notarization): Developer ID sertifikası + notarytool profili "mate-lyrics-notary" (bkz. Dağıtım).

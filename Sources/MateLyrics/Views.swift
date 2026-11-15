@@ -156,10 +156,16 @@ struct WidgetView: View {
                         .openSpotifyOnTap(spotify)
                     TrackInfo(track: track, s: s * 0.85, alignment: .leading)
                     Spacer(minLength: 0)
-                    Controls(spotify: spotify, showLyrics: lyricsToggle, s: s * 0.8)
+                    Controls(spotify: spotify, showLyrics: lyricsToggle, s: s * 0.8, showsModes: false)
                 }
-                ProgressRow(spotify: spotify, duration: track.duration, s: s * 0.85, showTimes: false)
-                    .padding(.top, 10 * s)
+                // Kompakt görünümde karışık / tekrar düğmeleri ilerleme çubuğunun soluna (üst satırda yer yok).
+                // Sağ alt köşe boyutlandırma tutamağına ait; düğme oraya konmaz (tıklama boyutlandırmaya giderdi).
+                HStack(spacing: 10 * s) {
+                    ShuffleToggle(spotify: spotify, s: s * 0.85)
+                    RepeatToggle(spotify: spotify, s: s * 0.85)
+                    ProgressRow(spotify: spotify, duration: track.duration, s: s * 0.85, showTimes: false)
+                }
+                .padding(.top, 10 * s)
               }
               .sectionBox(transparent, s: s)
                 if lyricsVisible {
@@ -305,16 +311,61 @@ struct Controls: View {
     @Binding var showLyrics: Bool
     let s: CGFloat
     var showsLyricsToggle = true
+    /// Karışık çalma / tekrar düğmeleri (kompakt görünümde ilerleme çubuğunun yanında gösterilir)
+    var showsModes = true
 
     var body: some View {
-        HStack(spacing: 22 * s) {
+        HStack(spacing: (showsModes ? 16 : 22) * s) {
+            if showsModes { ShuffleToggle(spotify: spotify, s: s) }
             ControlButton(symbol: "backward.fill", size: 16 * s) { spotify.previous() }
             ControlButton(symbol: spotify.isPlaying ? "pause.circle.fill" : "play.circle.fill", size: 38 * s) {
                 spotify.playPause()
             }
             ControlButton(symbol: "forward.fill", size: 16 * s) { spotify.next() }
+            if showsModes { RepeatToggle(spotify: spotify, s: s) }
             if showsLyricsToggle { LyricsToggle(isOn: $showLyrics, s: s) }
         }
+    }
+}
+
+/// Açık/kapalı düğme: açıkken tam görünür ve altında yeşil (Spotify rengi) nokta var.
+struct ModeToggle: View {
+    let symbol: String
+    let isOn: Bool
+    let s: CGFloat
+    let help: String
+    let action: () -> Void
+
+    var body: some View {
+        ControlButton(symbol: symbol, size: 14 * s, action: action)
+            .opacity(isOn ? 1 : 0.45)
+            .overlay(alignment: .bottom) {
+                Circle()
+                    .fill(Color(red: 0.12, green: 0.84, blue: 0.38))
+                    .frame(width: 4 * s, height: 4 * s)
+                    .offset(y: 7 * s)
+                    .opacity(isOn ? 1 : 0)
+            }
+            .animation(.easeOut(duration: 0.15), value: isOn)
+            .help(help)
+    }
+}
+
+struct ShuffleToggle: View {
+    @ObservedObject var spotify: SpotifyClient
+    let s: CGFloat
+    var body: some View {
+        ModeToggle(symbol: "shuffle", isOn: spotify.isShuffling, s: s,
+                   help: spotify.isShuffling ? "Karışık çalmayı kapat" : "Karışık çal") { spotify.toggleShuffle() }
+    }
+}
+
+struct RepeatToggle: View {
+    @ObservedObject var spotify: SpotifyClient
+    let s: CGFloat
+    var body: some View {
+        ModeToggle(symbol: "repeat", isOn: spotify.isRepeating, s: s,
+                   help: spotify.isRepeating ? "Tekrarı kapat" : "Tekrar çal") { spotify.toggleRepeat() }
     }
 }
 

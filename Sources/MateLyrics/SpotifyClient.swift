@@ -17,11 +17,15 @@ final class SpotifyClient: ObservableObject {
 
     @Published private(set) var track: Track?
     @Published private(set) var isPlaying = false
+    @Published private(set) var isShuffling = false
+    @Published private(set) var isRepeating = false
     @Published private(set) var isRunning = false
     @Published private(set) var permissionDenied = false
 
     /// Oynat/durdur'a basınca Spotify durumu hemen güncellemiyor; bu süre içinde gelen eski durumu yok say.
     private var expectedPlaying: (value: Bool, until: Date)?
+    private var expectedShuffle: (value: Bool, until: Date)?
+    private var expectedRepeat: (value: Bool, until: Date)?
     private var position: Double = 0
     private var positionDate = Date()
     private var timer: Timer?
@@ -53,13 +57,19 @@ final class SpotifyClient: ObservableObject {
         set s to player state as string
         if s is "stopped" then return {"stopped"}
         set t to current track
-        return {s, player position, id of t, name of t, artist of t, album of t, duration of t, artwork url of t}
+        return {s, player position, id of t, name of t, artist of t, album of t, duration of t, artwork url of t, shuffling, repeating}
     end tell
     """)!
 
     #if DEBUG
     /// Geliştirme: gerçek Spotify sorgusunu durdurup sahte "çalan şarkı" ayarlamak için.
     var debugFrozen = false
+    func debugSetModes(shuffle: Bool, repeat rep: Bool) {
+        debugFrozen = true
+        isShuffling = shuffle
+        isRepeating = rep
+    }
+
     func debugSetRunning(_ running: Bool) {
         debugFrozen = true
         isRunning = running
@@ -120,6 +130,8 @@ final class SpotifyClient: ObservableObject {
         var playing: Bool
         var position: Double
         var track: Track
+        var shuffling: Bool?
+        var repeating: Bool?
     }
 
     nonisolated private static func parse(_ d: NSAppleEventDescriptor) -> Snapshot? {
@@ -131,11 +143,21 @@ final class SpotifyClient: ObservableObject {
             duration: durationMs / 1000,
             artworkURL: URL(string: str(8))
         )
-        return Snapshot(playing: str(1) == "playing", position: d.atIndex(2)?.doubleValue ?? 0, track: track)
+        return Snapshot(playing: str(1) == "playing", position: d.atIndex(2)?.doubleValue ?? 0, track: track,
+                        shuffling: d.numberOfItems >= 10 ? d.atIndex(9)?.booleanValue : nil,
+                        repeating: d.numberOfItems >= 10 ? d.atIndex(10)?.booleanValue : nil)
     }
 
     private func apply(_ s: Snapshot, at date: Date) {
+        #if DEBUG
+        if debugFrozen { return } // yolda kalmış gerçek yanıt test ayarını ezmesin
+        #endif
         if track != s.track { track = s.track }
+        // Karışık / tekrar: düğmeye basınca Spotify yeni durumu hemen bildirmez, eski değeri yok say
+        let shuffle = resolved(s.shuffling, current: isShuffling, expected: &expectedShuffle)
+        if shuffle != isShuffling { isShuffling = shuffle }
+        let rep = resolved(s.repeating, current: isRepeating, expected: &expectedRepeat)
+        if rep != isRepeating { isRepeating = rep }
         if let e = expectedPlaying {
             if s.playing == e.value || Date() > e.until {
                 expectedPlaying = nil
@@ -158,6 +180,28 @@ final class SpotifyClient: ObservableObject {
         run("playpause")
     }
     func next() { run("next track") }
+
+    /// Spotify'ın bildirdiği değer, az önce yaptığımız değişikliği henüz yansıtmıyorsa (1,5 sn) eskisini koru.
+    private func resolved(_ reported: Bool?, current: Bool, expected: inout (value: Bool, until: Date)?) -> Bool {
+        guard let reported else { return current }
+        if let e = expected {
+            if reported == e.value || Date() > e.until { expected = nil } else { return current }
+        }
+        return reported
+    }
+
+    func toggleShuffle() {
+        isShuffling.toggle()
+        expectedShuffle = (isShuffling, Date().addingTimeInterval(1.5))
+        run("set shuffling to \(isShuffling)")
+    }
+
+    /// Spotify'ın AppleScript'inde tekrar sadece açık/kapalı; "tek şarkıyı tekrarla" modu seçilemiyor.
+    func toggleRepeat() {
+        isRepeating.toggle()
+        expectedRepeat = (isRepeating, Date().addingTimeInterval(1.5))
+        run("set repeating to \(isRepeating)")
+    }
     func previous() { run("previous track") }
 
     func seek(to seconds: Double) {

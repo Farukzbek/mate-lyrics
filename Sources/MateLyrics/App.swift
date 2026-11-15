@@ -94,7 +94,8 @@ final class WidgetPanel: NSPanel {
         // AppKit pencere koordinatı: (0,0) sol alt. Kartın sağ alt köşesindeki 36pt'lik kare.
         let pad = Self.outerPadding
         let x = frame.width - pad
-        return p.x > x - 36 && p.x < x + 6 && p.y > pad - 6 && p.y < pad + 36
+        // 28 pt: tutamağın çizgilerini kapsar, kontrol düğmelerine (ör. söz düğmesi) taşmaz
+        return p.x > x - 28 && p.x < x + 6 && p.y > pad - 6 && p.y < pad + 28
     }
 
     override func sendEvent(_ event: NSEvent) {
@@ -661,6 +662,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 next()
             }
         }
+        if CommandLine.arguments.contains("--test-modes") {
+            // GERÇEK Spotify ile: durum okunuyor mu, komut sözdizimi geçerli mi, tekrar aç/kapa gidiş-dönüş çalışıyor mu.
+            // Karışık çalmayı gerçekten değiştirmem (sıradaki şarkıların sırası bozulabilir): sadece aynı değeri yazarım.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
+                @MainActor func name(_ b: Bool) -> String { b ? "açık" : "kapalı" }
+                @MainActor func raw(_ prop: String) -> String {
+                    var e: NSDictionary?
+                    let r = NSAppleScript(source: "tell application \"Spotify\" to return \(prop)")!.executeAndReturnError(&e)
+                    return e == nil ? name(r.booleanValue) : "HATA"
+                }
+                @MainActor func write(_ prop: String, _ v: Bool) -> Bool {
+                    var e: NSDictionary?
+                    NSAppleScript(source: "tell application \"Spotify\" to set \(prop) to \(v)")!.executeAndReturnError(&e)
+                    return e == nil
+                }
+                let sh = spotify.isShuffling, rp = spotify.isRepeating
+                print("Uygulamanın okuduğu: karışık", name(sh), "| tekrar", name(rp))
+                print("Spotify'ın söylediği: karışık", raw("shuffling"), "| tekrar", raw("repeating"))
+                print(raw("shuffling") == name(sh) && raw("repeating") == name(rp) ? "✓" : "✗", "okunan durum Spotify'la aynı")
+                print(write("shuffling", sh) ? "✓" : "✗", "karışık: yazma komutu geçerli (aynı değer yazıldı)")
+                print(write("repeating", rp) ? "✓" : "✗", "tekrar: yazma komutu geçerli (aynı değer yazıldı)")
+                guard !rp else { print("— tekrar zaten açık (tek şarkı modu olabilir); gidiş-dönüş denenmedi"); exit(0) }
+                spotify.toggleRepeat()
+                print(spotify.isRepeating ? "✓" : "✗", "düğmeye basınca widget anında açık gösteriyor")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [self] in MainActor.assumeIsolated {
+                    print(raw("repeating") == "açık" && spotify.isRepeating ? "✓" : "✗",
+                          "Spotify gerçekten tekrarı açtı:", raw("repeating"), "| widget:", name(spotify.isRepeating))
+                    spotify.toggleRepeat()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [self] in MainActor.assumeIsolated {
+                        print(raw("repeating") == "kapalı" && !spotify.isRepeating ? "✓" : "✗",
+                              "geri kapatıldı (eski haline döndü):", raw("repeating"), "| widget:", name(spotify.isRepeating))
+                        exit(0)
+                    } }
+                } }
+            }
+        }
         if CommandLine.arguments.contains("--test-jitter") {
             // Söz paneli açılıp kapanırken kartın sol üst köşesi ekranda kımıldıyor mu? Her 0.08 sn ölç.
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
@@ -765,6 +802,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Geliştirme için: her görünümü PNG olarak kaydeder (ekran izni gerektirmez).
     /// NSHostingView ile çizilir, yani ekrandakiyle aynı sonuç (ImageRenderer kırpmayı düzgün yapmıyor).
     private func writeSnapshots(to dir: URL) {
+        #if DEBUG
+        spotify.debugSetModes(shuffle: true, repeat: false) // görüntüde bir açık bir kapalı düğme görünsün
+        #endif
         let combos = WidgetStyle.allCases.flatMap { st in
             [BackgroundStyle.artwork, .dark, .transparent].map { (st, $0) }
         }
