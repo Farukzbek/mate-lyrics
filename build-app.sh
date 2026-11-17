@@ -8,6 +8,7 @@ swift build -c release --arch arm64 --arch x86_64
 BIN=".build/apple/Products/Release/MateLyrics"
 
 rm -rf dist && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+touch dist/.metadata_never_index   # derleme çıktısı Spotlight/Launchpad'te "kopya uygulama" olarak çıkmasın
 cp "$BIN" "$APP/Contents/MacOS/MateLyrics"
 [ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 
