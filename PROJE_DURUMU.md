@@ -119,5 +119,13 @@ Test: `--test-center` (oynat düğmesinin kart ortasından sapmasını görünt�
 `--test-sizes [--with-lyrics]`: ARKA PLAN boyutları hem sözler açık hem kapalıyken eşit olmalı (sözler kapalıyken şeffaf
 plak/kapak 20 pt dar, kompakt 4 pt kısaydı → düzeltildi; ölçüm stil değişiminden 0.9 sn sonra, bazen 1 seferlik sapma).
 
+## Söz kaydı seçimi (2026-11-17)
+LRCLIB'i herkes düzenleyebiliyor; BLOK3 - ESKİSİ GİBİ'nin iki senkron kaydı BAŞKA ŞARKININ sözleri + saçma zamanlar
+(27 satır 57–64. sn'ye sıkışmış, kapsama %4) içeriyordu, doğru sözler (40 satır) senkronsuz kayıttaydı; eski kural
+"senkronlu olan kazanır" yanlış şarkıyı gösteriyordu. Artık LyricsService.Candidate: geçerli senkron (zamanlar şarkının
+≥%30'una yayılmış, şarkıdan ≤30 sn taşan) > düz söz > enstrümantal > zamanı bozuk kaydın düz sözü (son çare);
+eşitlikte albüm adı Spotify'la aynı olan, sonra süresi yakın olan. Test: `--test-lyrics` (gerçek LRCLIB, ağ gerekir).
+DİKKAT: debug binary'yi `--help` gibi bilinmeyen argümanla çalıştırma, uygulamayı gerçekten başlatır (ikinci kopya).
+
 ## Yapılacaklar
 - Apple onayı (notarization): Developer ID sertifikası + notarytool profili "mate-lyrics-notary" (bkz. Dağıtım).

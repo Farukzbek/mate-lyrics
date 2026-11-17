@@ -762,6 +762,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 next()
             }
         }
+        if CommandLine.arguments.contains("--test-lyrics") {
+            // Gerçek LRCLIB: hangi söz kaydı seçiliyor? (ağ gerekir)
+            Task { @MainActor in
+                let cases: [(String, String, String, Double)] = [
+                    ("ESKİSİ GİBİ", "BLOK3", "OBSESIF", 184.826),            // bozuk senkron kayıtları var → düz söz beklenir
+                    ("TEQUILA SUNRISE", "Jefe", "TEQUILA SUNRISE", 158.5),   // geçerli senkron beklenir
+                    ("Mangır", "Ceg", "Trapanasyon", 249.18),
+                    ("isteyerek sevişmek", "Motive", "taycan v1", 160.286),
+                    ("Aynalı Kemer", "Barış Manço", "", 182.971),
+                    ("Çok Uzun Olmayan Yok Böyle Bir Şarkı Zz", "Hiç Kimse Xq", "", 200), // bulunamadı beklenir
+                ]
+                for (n, a, al, d) in cases {
+                    let t = Track(id: "t", name: n, artist: a, album: al, duration: d, artworkURL: nil)
+                    print(n.padding(toLength: 22, withPad: " ", startingAt: 0), "→", await LyricsService.debugFetch(t))
+                }
+                exit(0)
+            }
+        }
         if CommandLine.arguments.contains("--test-jitter") {
             // Söz paneli açılıp kapanırken kartın sol üst köşesi ekranda kımıldıyor mu? Her 0.08 sn ölç.
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [self] in
